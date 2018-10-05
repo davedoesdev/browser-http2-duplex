@@ -1,0 +1,5 @@
+{
+  "name": "http2-duplex-test",
+  "version": "0.0.1",
+  "main": "loader.html"
+}
