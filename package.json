@@ -1,6 +1,6 @@
 {
   "name": "http2-duplex",
-  "description": "Full duplex stream emulation over HTTP/2",
+  "description": "Full-duplex stream emulation over HTTP/2",
   "version": "0.0.1",
   "homepage": "https://github.com/davedoesdev/http2-duplex",
   "author": {
