@@ -31,7 +31,10 @@ export default function(http2_client_duplex_bundle, done) {
             });
 
             http2_duplex_server = await make_http2_duplex_server(
-                http2_server, '/test');
+                http2_server,
+                '/test', {
+                    highWaterMark: 100
+                });
 
             http2_duplex_server.on('duplex', (duplex, id) => {
                 duplex.on('finish', () => {
@@ -78,8 +81,13 @@ export default function(http2_client_duplex_bundle, done) {
             check();
         });
 
-        function multiple(n, name, f) {
-            it(name, function (cb) {
+        function multiple(n, name, f, options) {
+            options = Object.assign({
+                it: it,
+                simultaneous: true
+            }, options);
+
+            options.it(name, function (cb) {
                 const ths = this;
 
                 function check() {
@@ -102,15 +110,28 @@ export default function(http2_client_duplex_bundle, done) {
                     for (let [id, cd] of client_duplexes) {
                         const sd = server_duplexes.get(id);
                         expect(sd).to.exist;
-                        f.call(ths, cd, sd, check2);
-                        f.call(ths, sd, cd, check2);
+
+                        if (options.simultaneous) {
+                            f.call(ths, cd, sd, check2);
+                            f.call(ths, sd, cd, check2);
+                        } else {
+                            f.call(ths, cd, sd, function (err) {
+                                ++count;
+                                if (err) {
+                                    return cb(err);
+                                }
+                                f.call(ths, sd, cd, check2);
+                            });
+                        }
+
                     }
                 }
 
                 for (let i = 0; i < n; ++i) {
                     callbackify(http2_client_duplex_bundle.make)(
-                        `https://localhost:${port}/test`,
-                        {},
+                        `https://localhost:${port}/test`, {
+                            highWaterMark: 100
+                        },
                         (err, d) => {
                             if (err) {
                                 return cb(err);
@@ -133,8 +154,8 @@ export default function(http2_client_duplex_bundle, done) {
         // Make this middleware so we know when path not handled?
 
         function tests(n) {
-            function test(name, f) {
-                multiple(n, `${name} (x${n})`, f);
+            function test(name, f, options) {
+                multiple(n, `${name} (x${n})`, f, options);
             }
 
             test('single byte', function (sender, receiver, cb) {
@@ -227,6 +248,77 @@ export default function(http2_client_duplex_bundle, done) {
                 }
 
                 setTimeout(send, 0); 
+            });
+
+            test('write backpressure', function (sender, receiver, cb) {
+                this.timeout(60 * 1000);
+
+                let sender_done = false;
+                let receiver_done = false;
+
+                const send_hash = sender.createHash('sha256');
+                const receive_hash = receiver.createHash('sha256');
+
+                let j = 1;
+
+                receiver.on('readable', function () {
+                    let buf;
+                    do {
+                        buf = this.read(j);
+                        if (buf !== null) {
+                            receive_hash.update(buf);
+                            ++j;
+                        }
+                    } while (buf !== null);
+                });
+
+                function check() {
+                    if (sender_done && receiver_done) {
+                        cb();
+                    }
+                }
+
+                receiver.on('end', function () {
+                    expect(receive_hash.digest('hex')).to.equal(
+                        send_hash.digest('hex'));
+                    receiver_done = true;
+                    check();
+                });
+
+                const chunks = new Array(100);
+                let i = 0;
+                let drains = 0;
+
+                for (let ci = 0; ci < chunks.length; ++ci) {
+                    chunks[ci] = sender.randomBytes(ci);
+                }
+
+                sender.on('drain', function () {
+                    ++drains;
+                });
+
+                function write() {
+                    let ret;
+                    do {
+                        ret = sender.write(chunks[i]);
+                        send_hash.update(chunks[i]);
+                        ++i;
+                    } while ((ret !== false) && (i < chunks.length));
+
+                    if (i < chunks.length) {
+                        return sender.once('drain', write);
+                    }
+
+                    sender.end(function () {
+                        expect(drains).to.equal(34);
+                        sender_done = true;
+                        check();
+                    });
+                }
+
+                setTimeout(write, 0);
+            }, {
+                simultaneous: false
             });
         }
 
