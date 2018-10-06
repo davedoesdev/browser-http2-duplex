@@ -68,16 +68,10 @@ export default function(http2_client_duplex_bundle, done) {
 
             for (let d of server_duplexes.values()) {
                 d.on('finish', check);
-                d.on('end', function () {
-                    this.end();
-                });
-                d.resume();
             }
 
             for (let d of client_duplexes.values()) {
                 d.on('end', check);
-                d.end();
-                d.resume();
             }
 
             check();
@@ -142,15 +136,37 @@ export default function(http2_client_duplex_bundle, done) {
             }
 
             test('single byte', function (sender, receiver, cb) {
-                const buf = sender.randomBytes(1);
+                let sender_done = false;
+                let receiver_done = false;
+
+                function check() {
+                    if (sender_done && receiver_done) {
+                        cb();
+                    }
+                }
+
+                const send_buf = sender.randomBytes(1);
+                let receive_buf;
 
                 receiver.once('readable', function () {
-                    expect(this.read().toString('hex')).to.equal(buf.toString('hex'));
-                    expect(this.read()).not.to.exist;
-                    cb();
+                    receive_buf = this.read();
+                    this.on('readable', function () {
+                        expect(this.read()).not.to.exist;
+                    });
                 });
 
-                sender.end(buf);
+                receiver.on('end', function () {
+                    expect(receive_buf.toString('hex')).to.equal(
+                        send_buf.toString('hex'));
+                    this.end();
+                    receiver_done = true;
+                    check();
+                });
+
+                sender.end(send_buf, () => {
+                    sender_done = true;
+                    check();
+                });
             });
         }
 

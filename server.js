@@ -100,7 +100,7 @@ class Http2DuplexServer extends EventEmitter {
                             stream.respond({
                                 ':status': 200
                             }, {
-                                endStrean: true
+                                endStream: true
                             });
                         });
                         stream.pipe(duplex.sink, { end: false });

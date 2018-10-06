@@ -2,6 +2,8 @@
 /*global nw, http2_client_duplex_bundle */
 
 const runner = require('./load_runner.js');
+const util = require('util');
+const os = require('os');
 
 function done(err) {
     require('nw.gui').App.quit();
@@ -17,6 +19,24 @@ function done(err) {
 window.addEventListener('unhandledrejection', function (ev) {
     done(ev.reason);
 });
+
+console.log = function () {
+    process.stdout.write(util.format.apply(this, arguments));
+    process.stdout.write(os.EOL);
+};
+
+console.error = function () {
+    process.stderr.write(util.format.apply(this, arguments));
+    process.stderr.write(os.EOL);
+};
+
+console.trace = function trace() {
+    var err = new Error();
+    err.name = 'Trace';
+    err.message = util.format.apply(this, arguments);
+    Error.captureStackTrace(err, trace);
+    this.error(err.stack);
+};
 
 export default function() {
     try {
