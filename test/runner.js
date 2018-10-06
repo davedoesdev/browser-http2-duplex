@@ -3,7 +3,7 @@ import fs from 'fs';
 import { join } from 'path';
 import { createSecureServer } from 'http2';
 import { promisify, callbackify } from 'util';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { expect } from 'chai';
 import Mocha from 'mocha';
 import make_http2_duplex_server from 'browser-http2-duplex/server.js';
@@ -40,6 +40,7 @@ export default function(http2_client_duplex_bundle, done) {
                 });
                 expect(server_duplexes.has(id)).to.be.false;
                 duplex.randomBytes = randomBytes;
+                duplex.createHash = createHash;
                 server_duplexes.set(id, duplex);
             });
 
@@ -79,6 +80,8 @@ export default function(http2_client_duplex_bundle, done) {
 
         function multiple(n, name, f) {
             it(name, function (cb) {
+                const ths = this;
+
                 function check() {
                     if ((client_duplexes.size !== n) || 
                         (server_duplexes.size !== n)) {
@@ -99,8 +102,8 @@ export default function(http2_client_duplex_bundle, done) {
                     for (let [id, cd] of client_duplexes) {
                         const sd = server_duplexes.get(id);
                         expect(sd).to.exist;
-                        f(cd, sd, check2);
-                        f(sd, cd, check2);
+                        f.call(ths, cd, sd, check2);
+                        f.call(ths, sd, cd, check2);
                     }
                 }
 
@@ -118,6 +121,7 @@ export default function(http2_client_duplex_bundle, done) {
                             });
                             expect(client_duplexes.has(d.id)).to.be.false;
                             d.randomBytes = http2_client_duplex_bundle.crypto.randomBytes;
+                            d.createHash = http2_client_duplex_bundle.crypto.createHash;
                             client_duplexes.set(d.id, d);
                             check();
                         });
@@ -126,9 +130,7 @@ export default function(http2_client_duplex_bundle, done) {
         }
 
         // TODO
-        // get cleanup working even if test hasn't read/written everything
         // Make this middleware so we know when path not handled?
-        // Use random data so we know data is separated
 
         function tests(n) {
             function test(name, f) {
@@ -158,15 +160,73 @@ export default function(http2_client_duplex_bundle, done) {
                 receiver.on('end', function () {
                     expect(receive_buf.toString('hex')).to.equal(
                         send_buf.toString('hex'));
-                    this.end();
                     receiver_done = true;
                     check();
                 });
 
-                sender.end(send_buf, () => {
+                sender.end(send_buf, function () {
                     sender_done = true;
                     check();
                 });
+            });
+
+            test('multiple bytes', function (sender, receiver, cb) {
+                this.timeout(60 * 1000);
+
+                let sender_done = false;
+                let receiver_done = false;
+
+                const send_hash = sender.createHash('sha256');
+                const receive_hash = receiver.createHash('sha256');
+
+                receiver.on('readable', function () {
+                    let buf;
+                    do {
+                        buf = this.read();
+                        if (buf !== null) {
+                            receive_hash.update(buf);
+                        }
+                    } while (buf !== null);
+                });
+
+                function check() {
+                    if (sender_done && receiver_done) {
+                        cb();
+                    }
+                }
+
+                receiver.on('end', function () {
+                    expect(receive_hash.digest('hex')).to.equal(
+                        send_hash.digest('hex'));
+                    receiver_done = true;
+                    check();
+                });
+
+                let remaining = 100 * 1024;
+
+                function send() {
+                    const n = Math.min(Math.floor(Math.random() * 201), remaining);
+                    const buf = sender.randomBytes(n);
+                    
+                    send_hash.update(buf);
+                    const r = sender.write(buf);
+                    remaining -= n;
+
+                    if (remaining === 0) {
+                        return sender.end(function () {
+                            sender_done = true;
+                            check();
+                        });
+                    }
+
+                    if (r) {
+                        return setTimeout(send, Math.floor(Math.random() * 51));
+                    }
+
+                    sender.once('drain', send);
+                }
+
+                setTimeout(send, 0); 
             });
         }
 

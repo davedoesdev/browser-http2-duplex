@@ -1,4 +1,4 @@
-/*eslint-env node */
+/*eslint-env node, browser */
 /*global nw, http2_client_duplex_bundle */
 
 const runner = require('./load_runner.js');
@@ -20,17 +20,17 @@ window.addEventListener('unhandledrejection', function (ev) {
     done(ev.reason);
 });
 
-console.log = function () {
+console.log = function () { // eslint-disable-line no-console
     process.stdout.write(util.format.apply(this, arguments));
     process.stdout.write(os.EOL);
 };
 
-console.error = function () {
+console.error = function () { // eslint-disable-line no-console
     process.stderr.write(util.format.apply(this, arguments));
     process.stderr.write(os.EOL);
 };
 
-console.trace = function trace() {
+console.trace = function trace() { // eslint-disable-line no-console
     var err = new Error();
     err.name = 'Trace';
     err.message = util.format.apply(this, arguments);
