@@ -73,7 +73,7 @@ class Http2DuplexServer extends EventEmitter {
                             'Access-Control-Expose-Headers': 'http2-duplex-id',
                             'Content-Type': 'application/octet-stream'
                         });
-                        this.emit('duplex', duplex, id);
+                        this.emit('duplex', duplex, id, headers);
                         break;
                     }
 
@@ -81,7 +81,7 @@ class Http2DuplexServer extends EventEmitter {
                         const id = headers['http2-duplex-id'];
                         const duplex = duplexes.get(id);
                         if (!duplex) {
-                            return stream.response({
+                            return stream.respond({
                                 ':status': 404
                             }, {
                                 endStream: true
@@ -97,7 +97,7 @@ class Http2DuplexServer extends EventEmitter {
                             });
                         }
                         stream.on('end', () => {
-                            stream.response({
+                            stream.respond({
                                 ':status': 200
                             }, {
                                 endStrean: true
@@ -121,7 +121,7 @@ class Http2DuplexServer extends EventEmitter {
         });
     }
 
-    close() {
+    async close() {
         for (let session of this.sessions) {
             try {
                 session.destroy();

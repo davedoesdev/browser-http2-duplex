@@ -67,5 +67,5 @@ class FetchDuplex extends Duplex {
 }
 
 export default async function (url, options) {
-    return new FetchDuplex(url, await fetch(url), options);
+    return new FetchDuplex(url, await fetch(url, options), options);
 }
