@@ -3,30 +3,32 @@ import { Duplex } from 'stream';
 
 export const id_header = 'http2-duplex-id';
 
+export class ResponseError extends Error {
+    constructor(response) {
+        super(response.statusText);
+        this.response = response;
+    }
+}
+
 class FetchDuplex extends Duplex {
     constructor(url, response, options) {
         super(options);
         this.url = url;
         this.reader = response.body.getReader();
         this.id = response.headers.get('http2-duplex-id');
-        this.reading = false;
     }
 
     async _read() {
-        if (this.reading) {
-            return;
-        }
-        this.reading = true;
-
         try {
-            const { value, done } = await this.reader.read();
-            this.reading = false;
-            if (done) {
-                return this.push(null);
-            }
-            if (this.push(Buffer.from(value))) {
-                process.nextTick(() => this._read());
-            }
+            let value, done;
+            do {
+                ({ value, done } = await this.reader.read());
+                if (done) {
+                    this.push(null);
+                } else {
+                    done = !this.push(Buffer.from(value));
+                }
+            } while (!done);
         } catch (ex) {
             this.emit('error', ex);
         }
@@ -42,6 +44,9 @@ class FetchDuplex extends Duplex {
                 },
                 body: Uint8Array.from(chunk)
             });
+            if (!response.ok) {
+                throw new ResponseError(response);
+            }
             await response.arrayBuffer();
         } catch (ex) {
             return cb(ex);
@@ -58,6 +63,9 @@ class FetchDuplex extends Duplex {
                     'http2-duplex-end': 'true'
                 }
             });
+            if (!response.ok) {
+                throw new ResponseError(response);
+            }
             await response.arrayBuffer();
         } catch (ex) {
             return cb(ex);
@@ -67,5 +75,9 @@ class FetchDuplex extends Duplex {
 }
 
 export default async function (url, options) {
-    return new FetchDuplex(url, await fetch(url, options), options);
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        throw new ResponseError(response);
+    }
+    return new FetchDuplex(url, response, options);
 }

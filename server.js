@@ -7,9 +7,13 @@ class ServerDuplex extends Duplex {
     constructor(stream, options) {
         super(options);
         this.stream = stream;
+        this.options = options;
         this.need_chunk = false;
         this.chunks = [];
-        this.sink = new Writable(Object.assign({}, options, {
+    }
+
+    sink() {
+        return new Writable(Object.assign({}, this.options, {
             write: (chunk, encoding, cb) => {
                 this.chunks.push({ chunk, cb });
                 if (this.need_chunk) {
@@ -55,7 +59,7 @@ class Http2DuplexServer extends EventEmitter {
 
             session.on('stream', (stream, headers) => {
                 if (headers[':path'] !== path) {
-                    return;
+                    return this.emit('unhandled_stream', stream, headers);
                 }
 
                 this.sessions.add(session);
@@ -96,14 +100,15 @@ class Http2DuplexServer extends EventEmitter {
                                 endStream: true
                             });
                         }
-                        stream.on('end', () => {
+                        const sink = duplex.sink();
+                        sink.on('finish', () => {
                             stream.respond({
                                 ':status': 200
                             }, {
                                 endStream: true
                             });
                         });
-                        stream.pipe(duplex.sink, { end: false });
+                        stream.pipe(sink);
                         break;
                     }
 
@@ -113,7 +118,7 @@ class Http2DuplexServer extends EventEmitter {
                         }, {
                             endStream: true
                         });
-                        this.emit('error', new Error(`unknown method: ${method}`));
+                        this.emit('warning', new Error(`unknown method: ${method}`));
                         break;
                     }
                 }

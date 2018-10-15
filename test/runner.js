@@ -1,14 +1,15 @@
 /*eslint-env node, mocha */
 import fs from 'fs';
 import { join } from 'path';
-import { createSecureServer } from 'http2';
+import { createSecureServer, connect } from 'http2';
 import { promisify, callbackify } from 'util';
 import { randomBytes, createHash } from 'crypto';
+import { PassThrough } from 'stream';
 import { expect } from 'chai';
 import Mocha from 'mocha';
 import make_http2_duplex_server from 'browser-http2-duplex/server.js';
 
-const { readFile } = fs.promises;
+const { readFile, writeFile } = fs.promises;
 
 export default function(http2_client_duplex_bundle, done) {
     const mocha = new Mocha({
@@ -23,6 +24,8 @@ export default function(http2_client_duplex_bundle, done) {
 
         const client_duplexes = new Map();
         const server_duplexes = new Map();
+
+        const warnings = [];
 
         before(async function () {
             http2_server = createSecureServer({
@@ -44,7 +47,21 @@ export default function(http2_client_duplex_bundle, done) {
                 expect(server_duplexes.has(id)).to.be.false;
                 duplex.randomBytes = randomBytes;
                 duplex.createHash = createHash;
+                duplex.PassThrough = PassThrough;
                 server_duplexes.set(id, duplex);
+            });
+
+            http2_duplex_server.on('unhandled_stream', function (stream) {
+                this.sessions.add(stream.session);
+                stream.respond({
+                    ':status': 404
+                }, {
+                    endStream: true
+                });
+            });
+
+            http2_duplex_server.on('warning', function (err) {
+                warnings.push(err.message);
             });
 
             await promisify(http2_server.listen.bind(http2_server))(0);
@@ -53,7 +70,18 @@ export default function(http2_client_duplex_bundle, done) {
         });
 
         after(async function () {
+            expect(warnings).to.eql([]);
+            const expected_warnings = [];
+            for (let session of http2_duplex_server.sessions) {
+                const orig_destroy = session.destroy;
+                session.destroy = function () {
+                    orig_destroy.call(this);
+                    throw new Error('foobar');
+                };
+                expected_warnings.push('foobar');
+            }
             await http2_duplex_server.close();
+            expect(warnings).to.eql(expected_warnings);
             await promisify(http2_server.close.bind(http2_server))();
         });
 
@@ -66,6 +94,7 @@ export default function(http2_client_duplex_bundle, done) {
             function check() {
                 if ((client_duplexes.size === 0) &&
                     (server_duplexes.size === 0)) {
+                    warnings.length = 0;
                     cb();
                 }
             }
@@ -84,7 +113,9 @@ export default function(http2_client_duplex_bundle, done) {
         function multiple(n, name, f, options) {
             options = Object.assign({
                 it: it,
-                simultaneous: true
+                simultaneous: true,
+                highWaterMark: 100,
+                url_suffix: ''
             }, options);
 
             options.it(name, function (cb) {
@@ -111,7 +142,8 @@ export default function(http2_client_duplex_bundle, done) {
                         const sd = server_duplexes.get(id);
                         expect(sd).to.exist;
 
-                        if (options.simultaneous) {
+                        if (options.simultaneous &&
+                            !options.only_browser_to_server) {
                             f.call(ths, cd, sd, check2);
                             f.call(ths, sd, cd, check2);
                         } else {
@@ -120,6 +152,9 @@ export default function(http2_client_duplex_bundle, done) {
                                 if (err) {
                                     return cb(err);
                                 }
+                                if (options.only_browser_to_server) {
+                                    return check2();
+                                }
                                 f.call(ths, sd, cd, check2);
                             });
                         }
@@ -127,13 +162,24 @@ export default function(http2_client_duplex_bundle, done) {
                     }
                 }
 
+                let err_count = 0;
+                function check_err(err) {
+                    ++err_count;
+                    if (err || err_count === n) {
+                        cb(err);
+                    }
+                }
+
                 for (let i = 0; i < n; ++i) {
                     callbackify(http2_client_duplex_bundle.make)(
-                        `https://localhost:${port}/test`, {
-                            highWaterMark: 100
+                        `https://localhost:${port}/test${options.url_suffix}`, {
+                            highWaterMark: options.highWaterMark
                         },
                         (err, d) => {
                             if (err) {
+                                if (options.expect_client_err) {
+                                    return f.call(ths, err, check_err);
+                                }
                                 return cb(err);
                             }
                             d.on('end', () => {
@@ -143,15 +189,13 @@ export default function(http2_client_duplex_bundle, done) {
                             expect(client_duplexes.has(d.id)).to.be.false;
                             d.randomBytes = http2_client_duplex_bundle.crypto.randomBytes;
                             d.createHash = http2_client_duplex_bundle.crypto.createHash;
+                            d.PassThrough = http2_client_duplex_bundle.PassThrough;
                             client_duplexes.set(d.id, d);
                             check();
                         });
                 }
             });
         }
-
-        // TODO
-        // Make this middleware so we know when path not handled?
 
         function tests(n) {
             function test(name, f, options) {
@@ -250,7 +294,61 @@ export default function(http2_client_duplex_bundle, done) {
                 setTimeout(send, 0); 
             });
 
-            test('write backpressure', function (sender, receiver, cb) {
+            test('echo', function (sender, receiver, cb) {
+                let sender_ended = false;
+                let receiver_ended = false;
+
+                function check() {
+                    if (sender_ended && receiver_ended) {
+                        cb();
+                    }
+                }
+
+                sender.on('end', function () {
+                    sender_ended = true;
+                    check();
+                });
+
+                receiver.on('end', function () {
+                    receiver_ended = true;
+                    check();
+                });
+
+                sender.on('readable', function () {
+                    let c;
+                    do {
+                        c = this.read(1);
+                        if (c !== null) {
+                            if (c.toString() === 's') {
+                                this.end();
+                            } else {
+                                this.write(c);
+                            }
+                        }
+                    } while (c !== null);
+                });
+
+                receiver.on('readable', function () {
+                    let c;
+                    do {
+                        c = this.read(1);
+                        if (c !== null) {
+                            if (c.toString() === 'r') {
+                                this.end();
+                            } else {
+                                this.write(c);
+                            }
+                        }
+                    } while (c !== null);
+                });
+
+                sender.write('s');
+                receiver.write('r');
+            }, {
+                only_browser_to_server: true // but both will send
+            });
+
+            function write_backpressure(sender, receiver, cb) {
                 this.timeout(60 * 1000);
 
                 let sender_done = false;
@@ -262,14 +360,22 @@ export default function(http2_client_duplex_bundle, done) {
                 let j = 1;
 
                 receiver.on('readable', function () {
-                    let buf;
-                    do {
-                        buf = this.read(j);
-                        if (buf !== null) {
-                            receive_hash.update(buf);
-                            ++j;
-                        }
-                    } while (buf !== null);
+                    const read = () => {
+                        let buf;
+                        do {
+                            buf = this.read(j);
+                            if (buf !== null) {
+                                receive_hash.update(buf);
+                                ++j;
+                            }
+                        } while (buf !== null);
+                    };
+                    if ((this._readableState.highWaterMark === 50) &&
+                        (j === 1)) {
+                        // Make data back up so we cover
+                        return setTimeout(read, 2000);
+                    }
+                    read();
                 });
 
                 function check() {
@@ -303,6 +409,11 @@ export default function(http2_client_duplex_bundle, done) {
                         ret = sender.write(chunks[i]);
                         send_hash.update(chunks[i]);
                         ++i;
+                        if ((receiver._readableState.highWaterMark === 50) &&
+                            (i === 99)) {
+                            // Allow data to back up
+                            return setTimeout(write, 1000);
+                        }
                     } while ((ret !== false) && (i < chunks.length));
 
                     if (i < chunks.length) {
@@ -310,22 +421,265 @@ export default function(http2_client_duplex_bundle, done) {
                     }
 
                     sender.end(function () {
-                        expect(drains).to.equal(34);
+                        const hwm = sender._writableState.highWaterMark;
+                        expect(drains).to.equal(hwm === 50 ? 66 : 34);
                         sender_done = true;
                         check();
                     });
                 }
 
                 setTimeout(write, 0);
-            }, {
+            }
+            
+            test('write backpressure', write_backpressure, {
                 simultaneous: false
+            });
+
+            test('write backpressure (different hwm)', write_backpressure, {
+                simultaneous: false,
+                highWaterMark: 50
+            });
+
+            test('read backpressure', function (sender, receiver, cb) {
+                this.timeout(60 * 1000);
+
+                let sender_done = false;
+                let receiver_done = false;
+
+                function check() {
+                    if (sender_done && receiver_done) {
+                        cb();
+                    }
+                }
+
+                receiver.once('readable', function () {
+                    expect(this.read().length).to.equal(101);
+                    this.once('readable', function () {
+                        expect(this.read().length).to.equal(50);
+                        this.once('readable', function () {
+                            expect(this.read()).not.to.exist;
+                            receiver.end();
+                            receiver_done = true;
+                            check();
+                        });
+                    });
+                });
+
+                sender.once('drain', function () {
+                    expect(this.write(sender.randomBytes(50))).to.be.true;
+                    this.end(function () {
+                        sender_done = true;
+                        check();
+                    });
+                    this.resume();
+                });
+
+                expect(sender.write(sender.randomBytes(101))).to.be.false;
+            }, {
+                only_browser_to_server: true
+            });
+
+            test('flow', function (sender, receiver, cb) {
+                this.timeout(60 * 1000);
+
+                let sender_done = false;
+                let receiver_done = false;
+
+                const send_hash = sender.createHash('sha256');
+                const receive_hash = receiver.createHash('sha256');
+
+                receiver.on('data', function (buf) {
+                    receive_hash.update(buf);
+                });
+
+                function check() {
+                    if (sender_done && receiver_done) {
+                        cb();
+                    }
+                }
+
+                receiver.on('end', function () {
+                    expect(receive_hash.digest('hex')).to.equal(
+                        send_hash.digest('hex'));
+                    receiver_done = true;
+                    check();
+                });
+
+                let remaining = 100 * 1024;
+
+                function send() {
+                    const n = Math.min(Math.floor(Math.random() * 201), remaining);
+                    const buf = sender.randomBytes(n);
+                    
+                    send_hash.update(buf);
+                    sender.write(buf);
+                    remaining -= n;
+
+                    if (remaining === 0) {
+                        return sender.end(function () {
+                            sender_done = true;
+                            check();
+                        });
+                    }
+
+                    setTimeout(send, Math.floor(Math.random() * 51));
+                }
+
+                setTimeout(send, 0);
+            });
+
+            test('pipe', function (sender, receiver, cb) {
+                this.timeout(60 * 1000);
+
+                const random_stream = new sender.PassThrough();
+                const out_hash = sender.createHash('sha256');
+                let remaining = 1024 * 1024;
+                while (remaining > 0) {
+                    const n = Math.min(Math.floor(Math.random() * 65536), remaining);
+                    const buf = sender.randomBytes(n);
+                    out_hash.update(buf);
+                    random_stream.write(buf);
+                    remaining -= n;
+                }
+
+                const in_hash = sender.createHash('sha256');
+                sender.on('readable', function () {
+                    let buf;
+                    do {
+                        buf = this.read();
+                        if (buf !== null) {
+                            in_hash.update(buf);
+                        }
+                    } while (buf !== null);
+                });
+                sender.on('end', function () {
+                    expect(in_hash.digest('hex')).to.equal(
+                        out_hash.digest('hex'));
+                    cb(); 
+                });
+
+                receiver.pipe(receiver);
+                random_stream.pipe(sender);
+                random_stream.end();
+            }, {
+                only_browser_to_server: true
+            });
+
+            test('emit client read error', function (sender, receiver, cb) {
+                const orig_read = sender.reader.read;
+                sender.reader.read = function () {
+                    throw new Error('foo');
+                };
+
+                sender.on('error', function (err) {
+                    sender.reader.read = orig_read;
+                    process.nextTick(() => this._read());
+                    expect(err.message).to.equal('foo');
+                    this.on('end', cb);
+                    this.end();
+                });
+
+                receiver.on('end', function () {
+                    this.end();
+                });
+                receiver.resume();
+
+                sender.resume();
+            }, {
+                only_browser_to_server: true
+            });
+
+            test('emit client write error', function (sender, receiver, cb) {
+                const orig_id = sender.id;
+                sender.id += 'x';
+
+                sender.on('error', function (err) {
+                    sender.id = orig_id;
+                    expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                    expect(err.response.status).to.equal(404);
+                    this.on('end', cb);
+                    this.end();
+                });
+
+                receiver.on('end', function () {
+                    this.end();
+                });
+                receiver.resume();
+
+                sender.write('hello');
+                sender.resume();
+            }, {
+                only_browser_to_server: true
+            });
+
+            test('emit client end error', function (sender, receiver, cb) {
+                const orig_id = sender.id;
+                sender.id += 'x';
+
+                sender.on('error', function (err) {
+                    sender.id = orig_id;
+                    expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                    expect(err.response.status).to.equal(404);
+                    this.on('end', cb);
+                    this._final(() => {});
+                });
+
+                receiver.on('end', function () {
+                    this.end();
+                });
+                receiver.resume();
+
+                sender.end();
+                sender.resume();
+            }, {
+                only_browser_to_server: true
+            });
+
+            test('emit client make error', function (err, cb) {
+                expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                expect(err.response.status).to.equal(404);
+                cb();
+            }, {
+                only_browser_to_server: true,
+                url_suffix: '_does_not_exist',
+                expect_client_err: true
+            });
+            
+            it('unknown method', function (cb) {
+                const session = connect(
+                    `https://localhost:${port}`, {
+                        ca: fs.readFileSync(join(__dirname, 'certs', 'ca.crt'))
+                    });
+                const stream = session.request({
+                    ':method': 'HEAD',
+                    ':path': '/test'
+                });
+                stream.on('response', headers => {
+                    expect(headers[':status']).to.equal(405);
+                    expect(warnings).to.eql([ 'unknown method: HEAD' ]);
+                    cb();
+                });
             });
         }
 
         tests(1);
+        tests(2);
+        tests(5);
+        tests(10);
     });
 
-    mocha.run(function (failures) {
+    mocha.run(async function (failures) {
+        try {
+            const coverage_dir = process.env.NYC_OUTPUT_DIR;
+            if (coverage_dir) {
+                const coverage = Object.assign(global.__coverage__,
+                    http2_client_duplex_bundle.window.__coverage__);
+                const json = JSON.stringify(coverage);
+                await writeFile(join(coverage_dir, 'coverage.json'), json);
+            }
+        } catch (ex) {
+            return done(ex);
+        }
         done(failures ? new Error('failed') : null);
     });
 }

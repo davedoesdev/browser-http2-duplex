@@ -1,2 +1,3 @@
-export { default as make } from '../client.js';
+export { default as make, ResponseError } from './client.js';
 export { default as crypto } from 'crypto';
+export { PassThrough } from 'stream';

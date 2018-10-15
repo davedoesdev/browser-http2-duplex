@@ -1,7 +1,6 @@
 /*eslint-env node, browser */
 /*global nw, http2_client_duplex_bundle */
 
-const runner = require('./load_runner.js');
 const util = require('util');
 const os = require('os');
 
@@ -40,8 +39,8 @@ console.trace = function trace() { // eslint-disable-line no-console
 
 export default function() {
     try {
-        nw.Window.get().showDevTools();
-        runner(http2_client_duplex_bundle, done);
+        //nw.Window.get().showDevTools();
+        require('./load_runner.js')(http2_client_duplex_bundle, done);
     } catch (ex) {
         done(ex);
     }

@@ -1,3 +1,6 @@
 /build
 node_modules
 /test/bundle.js
+/test/client.js
+/test/server.js
+/.nyc_output
