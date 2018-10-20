@@ -1,5 +1,5 @@
 /*eslint-env node, browser */
-/*global nw, http2_client_duplex_bundle */
+/*global http2_client_duplex_bundle */
 
 const util = require('util');
 const os = require('os');

@@ -14,7 +14,9 @@ export default function (grunt) {
                 '!test/client.js',
                 '!test/server.js',
                 '!test/bundle.js',
-                '!test/node_modules/**/*.js'
+                '!test/node_modules/**/*.js',
+                'example/**/*.js',
+                '!example/bundle.js'
             ]
         },
 
@@ -48,7 +50,11 @@ export default function (grunt) {
                 }
             },
             cover_report: './node_modules/.bin/nyc report -r lcov',
-            cover_check: './node_modules/.bin/nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100'
+            cover_check: './node_modules/.bin/nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100',
+            example: [
+                './node_modules/.bin/webpack -r esm --mode production --config example/webpack.config.js',
+                'node -r esm example/server.js'
+            ].join('&&')
         }
     });
 
@@ -67,4 +73,5 @@ export default function (grunt) {
         'exec:cover_report',
         'exec:cover_check'
     ]);
+    grunt.registerTask('example', 'exec:example');
 }

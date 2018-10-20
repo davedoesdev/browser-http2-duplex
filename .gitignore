@@ -3,4 +3,5 @@ node_modules
 /test/bundle.js
 /test/client.js
 /test/server.js
+/example/bundle.js
 /.nyc_output

@@ -1,0 +1,190 @@
+= browser-http2-duplex{nbsp}{nbsp}{nbsp}image:https://circleci.com/gh/davedoesdev/browser-http2-duplex.svg?style=svg[Build Status,link=https://circleci.com/gh/davedoesdev/browser-http2-duplex] image:https://coveralls.io/repos/github/davedoesdev/browser-http2-duplex/badge.svg[Coverage Status,link=https://coveralls.io/github/davedoesdev/browser-http2-duplex] image:https://img.shields.io/npm/v/browser-http2-duplex.svg[NPM version,link=https://www.npmjs.com/package/browser-http2-duplex]
+:prewrap!:
+
+== The problem
+
+The https://httpwg.org/specs/rfc7540.html[HTTP/2 spec] supports full-duplex
+streams between client and server. Accordingly, if you use the Node.js
+https://nodejs.org/dist/latest-v10.x/docs/api/http2.html[`http2`] module on
+client and server, you get a https://nodejs.org/dist/latest-v10.x/docs/api/stream.html#stream_class_stream_duplex[`Duplex`] stream on both sides.
+
+However, you won't get a full-duplex stream in a browser client.
+
+The https://fetch.spec.whatwg.org/[Fetch] API specification does provide for
+duplex streams:
+
+* You can https://fetch.spec.whatwg.org/#body-mixin[specify a ReadableStream] when making a request (here's the https://github.com/whatwg/fetch/pull/425[PR] which added it to the spec).
+
+* You can call `getReader` on https://fetch.spec.whatwg.org/#concept-body[response bodies] to get a
+https://streams.spec.whatwg.org/#rs-class[`ReadableStream`].
+
+The latter works fine in browsers -- you can read data sent from the server
+using the `ReadableStream` class.
+
+But streaming data from the browser to the server using Fetch doesn't work:
+
+1. Browsers don't implement attaching a `ReadableStream` to a request body yet. Chromium has started to implement it https://bugs.chromium.org/p/chromium/issues/detail?id=688906[here].
+
+2. Even when attaching a `ReadableStream` to a request body has been implemented, you won't get full-duplex behaviour according to
+https://bugs.chromium.org/p/chromium/issues/detail?id=884568#c3[this comment]
+from the Chromium team:
+
+> Please note that even if it's implemented it may be different from what you call "full duplex", as currently Chrome don't handle a response until it sends all the request body.
+
+== Solution
+
+`browser-http2-duplex` emulates a full-duplex Node.js `Duplex` stream in the
+browser over HTTP/2 using the Fetch API.
+
+* Each data chunk your application writes to the `Duplex` is sent to the server
+in a _separate_ POST request (over a single HTTP/2 connection).
+
+* Data from the initial response body's `ReadableStream` is pushed to the
+`Duplex` for your application to read.
+
+On the server, `browser-http2-duplex` marries up the separate POST requests with
+the initial reponse and presents a `Duplex` stream to your application.
+
+== Example
+
+Here's a server which echoes data it receives on a duplex stream back to
+clients.
+
+[source,javascript]
+.server.js
+----
+import fs from 'fs';
+import { join } from 'path';
+import { createSecureServer } from 'http2';
+import make_http2_duplex_server from '..';
+const { readFile } = fs.promises;
+const cert_dir = join(__dirname, '..', 'test', 'certs');
+
+(async function () {
+    const http2_server = createSecureServer({ // <1>
+        key: await readFile(join(cert_dir, 'server.key')),
+        cert: await readFile(join(cert_dir, 'server.crt'))
+    });
+
+    const http2_duplex_server = await make_http2_duplex_server( // <2>
+        http2_server,
+        '/example'
+    );
+
+    http2_duplex_server.on('duplex', function (stream) { <3>
+        stream.pipe(stream);
+    });
+
+    http2_duplex_server.on('unhandled_stream', function (stream, headers) { <4>
+        const path = headers[':path'];
+        if (path === '/client.html') {
+            return stream.respondWithFile(
+                join(__dirname, path.substr(1)),
+                { 'content-type': 'text/html' });
+        }
+        if ((path === '/client.js') ||
+            (path === '/bundle.js')) {
+            return stream.respondWithFile(
+                join(__dirname, path.substr(1)),
+                { 'content-type': 'text/javascript' });
+        }
+        stream.respond({ ':status': 404 }, { endStream: true });
+    });
+
+    http2_server.listen(7000);
+})();
+----
+<1> Create a standard Node.js HTTP/2 server.
+<2> Create a server to communicate with clients using full-duplex emulation.
+<3> When a client creates a new duplex, the server gets a `duplex` event.
+<4> Other requests raise an `unhandled_stream` event. Here we return the client
+files to the browser.
+
+Note you can just Control-C the server to stop it. If you wanted to stop the
+server in code, you would do something like this:
+
+[source,javascript]
+----
+await http2_duplex_server.close(); <1>
+await promisify(http2_server.close.bind(http2_server))();
+----
+<1> This destroys all active sessions.
+
+Here's a client which sends keypresses to the server and writes the echoed
+response to the page:
+
+[source,javascript]
+.client.js
+----
+export default async function () {
+    const duplex = await http2_client_duplex_bundle.make( <1>
+        'https://localhost:7000/example');
+    
+    document.addEventListener('keypress', ev => { <2>
+        duplex.write(ev.key);
+    });
+
+    duplex.on('readable', function () { <3>
+        let buf;
+        do {
+            buf = this.read();
+            if (buf !== null) {
+                document.body.appendChild(document.createTextNode(buf.toString()));
+            }
+        } while (buf !== null);
+    });
+}
+----
+<1> Connect to the server and emulate a new full-duplex stream.
+<2> When the user presses a key, write the character to the stream.
+<3> Read characters the server echoes back from the stream and append them to
+the document body.
+
+That's a simple example of setting up duplex emulation between a browser and a
+server. You'll also need an HTML page and to bundle up the client-side library
+(e.g. using Webpack). You can find all these files in the link:example[]
+directory. To run the example:
+
+[source,bash]
+----
+grunt example
+----
+
+and then point your browser to https://localhost:7000/client.html.
+
+== Installation
+
+[source,bash]
+----
+npm install browser-http2-duplex
+----
+
+== Licence
+
+link:LICENCE[MIT]
+
+== Test
+
+[source,bash]
+----
+grunt test
+----
+
+== Lint
+
+[source,bash]
+----
+grunt lint
+----
+
+== Coverage
+
+[source,bash]
+----
+grunt coverage
+----
+
+https://istanbul.js.org/[Istanbul] results are available
+http://rawgit.davedoesdev.com/davedoesdev/browser-http2-duplex/master/coverage/lcov-report/index.html[here].
+
+Coveralls page is https://coveralls.io/r/davedoesdev/browser-http2-duplex[here].
