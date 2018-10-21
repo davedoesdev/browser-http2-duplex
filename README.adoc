@@ -56,9 +56,9 @@ clients.
 import fs from 'fs';
 import { join } from 'path';
 import { createSecureServer } from 'http2';
-import make_http2_duplex_server from '..';
+import make_http2_duplex_server from 'browser-http2-duplex';
 const { readFile } = fs.promises;
-const cert_dir = join(__dirname, '..', 'test', 'certs');
+const cert_dir = join(__dirname, 'certs');
 
 (async function () {
     const http2_server = createSecureServer({ // <1>

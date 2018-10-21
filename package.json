@@ -19,7 +19,7 @@
   "module": "server.js",
   "scripts": {
     "test": "grunt test",
-    "ci": "grunt lint coverage"
+    "ci": "grunt lint coverage coveralls"
   },
   "directories": {
     "test": "test"
@@ -37,6 +37,7 @@
     "@babel/core": "^7.1.2",
     "babel-plugin-istanbul": "^5.0.1",
     "chai": "^4.2.0",
+    "coveralls": "^3.0.2",
     "eslint": "^5.6.1",
     "grunt": "^1.0.3",
     "grunt-eslint": "^21.0.0",
