@@ -7,7 +7,7 @@ import { randomBytes, createHash } from 'crypto';
 import { PassThrough } from 'stream';
 import { expect } from 'chai';
 import Mocha from 'mocha';
-import make_http2_duplex_server from 'browser-http2-duplex/server.js';
+import make_http2_duplex_server from 'http2-duplex/server.js';
 
 const { readFile, writeFile } = fs.promises;
 

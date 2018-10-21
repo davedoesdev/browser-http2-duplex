@@ -1,4 +1,4 @@
-= browser-http2-duplex{nbsp}{nbsp}{nbsp}image:https://circleci.com/gh/davedoesdev/browser-http2-duplex.svg?style=svg[Build Status,link=https://circleci.com/gh/davedoesdev/browser-http2-duplex] image:https://coveralls.io/repos/github/davedoesdev/browser-http2-duplex/badge.svg[Coverage Status,link=https://coveralls.io/github/davedoesdev/browser-http2-duplex] image:https://img.shields.io/npm/v/browser-http2-duplex.svg[NPM version,link=https://www.npmjs.com/package/browser-http2-duplex]
+= browser-http2-duplex{nbsp}{nbsp}{nbsp}image:https://api.travis-ci.org/davedoesdev/browser-http2-duplex.svg?branch=master[Build Status,link=https://travis-ci.org/davedoesdev/browser-http2-duplex] image:https://coveralls.io/repos/github/davedoesdev/browser-http2-duplex/badge.svg[Coverage Status,link=https://coveralls.io/github/davedoesdev/browser-http2-duplex] image:https://img.shields.io/npm/v/http2-duplex.svg[NPM version,link=https://www.npmjs.com/package/http2-duplex]
 :prewrap!:
 
 == The problem
@@ -56,7 +56,7 @@ clients.
 import fs from 'fs';
 import { join } from 'path';
 import { createSecureServer } from 'http2';
-import make_http2_duplex_server from 'browser-http2-duplex';
+import make_http2_duplex_server from 'http2-duplex';
 const { readFile } = fs.promises;
 const cert_dir = join(__dirname, 'certs');
 
@@ -156,7 +156,7 @@ and then point your browser to https://localhost:7000/client.html.
 
 [source,bash]
 ----
-npm install browser-http2-duplex
+npm install http2-duplex
 ----
 
 == Licence

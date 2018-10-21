@@ -24,8 +24,8 @@ export default function (grunt) {
             bundle: './node_modules/.bin/webpack -r esm --mode production --config test/webpack.config.js',
             nw_build: [
                 'rsync -a node_modules test --exclude nw-builder',
-                'mkdir -p test/node_modules/browser-http2-duplex',
-                'cp test/server.js test/node_modules/browser-http2-duplex',
+                'mkdir -p test/node_modules/http2-duplex',
+                'cp test/server.js test/node_modules/http2-duplex',
                 './node_modules/.bin/nwbuild --quiet -p linux64 test',
                 'sync'
             ].join('&&'),
