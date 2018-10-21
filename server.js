@@ -77,6 +77,8 @@ class Http2DuplexServer extends EventEmitter {
                             'Access-Control-Expose-Headers': 'http2-duplex-id',
                             'Content-Type': 'application/octet-stream'
                         });
+                        // Sometimes fetch waits for first byte before resolving
+                        stream.write('a');
                         this.emit('duplex', duplex, id, headers);
                         break;
                     }

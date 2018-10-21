@@ -16,6 +16,8 @@ class FetchDuplex extends Duplex {
         this.url = url;
         this.reader = response.body.getReader();
         this.id = response.headers.get('http2-duplex-id');
+        this.options = options;
+        this.first = true;
     }
 
     async _read() {
@@ -25,6 +27,10 @@ class FetchDuplex extends Duplex {
                 ({ value, done } = await this.reader.read());
                 if (done) {
                     this.push(null);
+                } else if (this.first) {
+                    // Sometimes fetch waits for first byte before resolving
+                    // so server-side sends initial dummy byte
+                    this.first = false;
                 } else {
                     done = !this.push(Buffer.from(value));
                 }
@@ -36,14 +42,17 @@ class FetchDuplex extends Duplex {
 
     async _write(chunk, encoding, cb) {
         try {
-            const response = await fetch(this.url, {
+            const options = Object.assign({
                 method: 'POST',
-                headers: {
-                    'http2-duplex-id': this.id,
-                    'Content-Type': 'application/octet-stream'
-                },
-                body: Uint8Array.from(chunk)
-            });
+                body: Uint8Array.from(chunk),
+                cache: 'no-store',
+                headers: {}
+            }, this.options);
+            options.headers = Object.assign({
+                'http2-duplex-id': this.id,
+                'Content-Type': 'application/octet-stream'
+            }, options.headers);
+            const response = await fetch(this.url, options);
             if (!response.ok) {
                 throw new ResponseError(response);
             }
@@ -56,13 +65,16 @@ class FetchDuplex extends Duplex {
 
     async _final(cb) {
         try {
-            const response = await fetch(this.url, {
+            const options = Object.assign({
                 method: 'POST',
-                headers: {
-                    'http2-duplex-id': this.id,
-                    'http2-duplex-end': 'true'
-                }
-            });
+                cache: 'no-store',
+                headers: {}
+            }, this.options);
+            options.headers = Object.assign({
+                'http2-duplex-id': this.id,
+                'http2-duplex-end': 'true'
+            }, options.headers);
+            const response = await fetch(this.url, options);
             if (!response.ok) {
                 throw new ResponseError(response);
             }
@@ -75,7 +87,9 @@ class FetchDuplex extends Duplex {
 }
 
 export default async function (url, options) {
-    const response = await fetch(url, options);
+    const response = await fetch(url, Object.assign({
+        cache: 'no-store'
+    }, options));
     if (!response.ok) {
         throw new ResponseError(response);
     }
