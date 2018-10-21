@@ -1,7 +1,7 @@
 {
   "name": "http2-duplex",
   "description": "Full-duplex stream emulation over HTTP/2",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "homepage": "https://github.com/davedoesdev/http2-duplex",
   "author": {
     "name": "David Halls",
@@ -17,6 +17,7 @@
   },
   "main": "index.js",
   "module": "server.js",
+  "browser": "client.js",
   "scripts": {
     "test": "grunt test",
     "ci": "grunt lint coverage coveralls"
