@@ -1,7 +1,7 @@
 {
   "name": "http2-duplex",
   "description": "Full-duplex stream emulation over HTTP/2",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "homepage": "https://github.com/davedoesdev/http2-duplex",
   "author": {
     "name": "David Halls",
@@ -36,6 +36,7 @@
   "devDependencies": {
     "@babel/cli": "^7.1.2",
     "@babel/core": "^7.1.2",
+    "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
     "babel-plugin-istanbul": "^5.0.1",
     "chai": "^4.2.0",
     "coveralls": "^3.0.2",

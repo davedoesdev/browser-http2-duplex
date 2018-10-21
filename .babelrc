@@ -1,7 +1,10 @@
 {
   "env": {
     "test": {
-      "plugins": [ "istanbul" ]
+      "plugins": [
+        "istanbul",
+        "@babel/plugin-proposal-object-rest-spread"
+      ]
     }
   }
 }

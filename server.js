@@ -3,6 +3,10 @@ import EventEmitter from 'events';
 import { randomBytes } from 'crypto';
 import { Duplex, Writable } from 'stream';
 
+const common_headers = {
+    'Cache-Control': 'max-age=0, no-cache, must-revalidate, proxy-revalidate'
+};
+
 class ServerDuplex extends Duplex {
     constructor(stream, options) {
         super(options);
@@ -75,7 +79,8 @@ class Http2DuplexServer extends EventEmitter {
                             ':status': 200,
                             'http2-duplex-id': id,
                             'Access-Control-Expose-Headers': 'http2-duplex-id',
-                            'Content-Type': 'application/octet-stream'
+                            'Content-Type': 'application/octet-stream',
+                            ...common_headers
                         });
                         // Sometimes fetch waits for first byte before resolving
                         stream.write('a');
@@ -88,7 +93,8 @@ class Http2DuplexServer extends EventEmitter {
                         const duplex = duplexes.get(id);
                         if (!duplex) {
                             return stream.respond({
-                                ':status': 404
+                                ':status': 404,
+                                ...common_headers
                             }, {
                                 endStream: true
                             });
@@ -97,7 +103,8 @@ class Http2DuplexServer extends EventEmitter {
                             duplex.push(null);
                             duplexes.delete(id);
                             return stream.respond({
-                                ':status': 200
+                                ':status': 200,
+                                ...common_headers
                             }, {
                                 endStream: true
                             });
@@ -105,7 +112,8 @@ class Http2DuplexServer extends EventEmitter {
                         const sink = duplex.sink();
                         sink.on('finish', () => {
                             stream.respond({
-                                ':status': 200
+                                ':status': 200,
+                                ...common_headers
                             }, {
                                 endStream: true
                             });
@@ -116,7 +124,8 @@ class Http2DuplexServer extends EventEmitter {
 
                     default: {
                         stream.respond({
-                            ':status': 405
+                            ':status': 405,
+                            ...common_headers
                         }, {
                             endStream: true
                         });
