@@ -3,10 +3,6 @@ import EventEmitter from 'events';
 import { randomBytes } from 'crypto';
 import { Duplex, Writable } from 'stream';
 
-const common_headers = {
-    'Cache-Control': 'max-age=0, no-cache, must-revalidate, proxy-revalidate'
-};
-
 class ServerDuplex extends Duplex {
     constructor(stream, options) {
         super(options);
@@ -56,6 +52,10 @@ class Http2DuplexServer extends EventEmitter {
         this.options = options;
         this.sessions = new Set();
 
+        this.common_headers = {
+            'Cache-Control': 'max-age=0, no-cache, must-revalidate, proxy-revalidate'
+        };
+
         http2_server.on('session', session => {
             const duplexes = new Map();
 
@@ -63,8 +63,10 @@ class Http2DuplexServer extends EventEmitter {
                 this.sessions.delete(session);
             });
 
-            session.on('stream', async (stream, headers, flags, rawHeaders) => {
-                await this.process_stream(stream, headers, flags, rawHeaders, duplexes);
+            session.on('stream', async (stream, headers, flags, raw_headers) => {
+                await this.process_stream(
+                    stream, headers, flags, raw_headers,
+                    duplexes, { ...this.common_headers });
             });
         });
     }
@@ -79,9 +81,11 @@ class Http2DuplexServer extends EventEmitter {
         }
     }
 
-    async process_stream(stream, headers, flags, rawHeaders, duplexes) {
+    async process_stream(stream, headers, flags, raw_headers,
+        duplexes, response_headers) {
         if (headers[':path'] !== this.path) {
-            this.emit('unhandled_stream', stream, headers, flags, rawHeaders);
+            this.emit('unhandled_stream', stream, headers, flags, raw_headers,
+                duplexes, response_headers);
             return false;
         }
 
@@ -99,7 +103,7 @@ class Http2DuplexServer extends EventEmitter {
                     'http2-duplex-id': id,
                     'Access-Control-Expose-Headers': 'http2-duplex-id',
                     'Content-Type': 'application/octet-stream',
-                    ...common_headers
+                    ...response_headers
                 });
                 // Sometimes fetch waits for first byte before resolving
                 stream.write('a');
@@ -113,7 +117,7 @@ class Http2DuplexServer extends EventEmitter {
                 if (!duplex) {
                     stream.respond({
                         ':status': 404,
-                        ...common_headers
+                        ...response_headers
                     }, {
                         endStream: true
                     });
@@ -124,7 +128,7 @@ class Http2DuplexServer extends EventEmitter {
                     duplexes.delete(id);
                     stream.respond({
                         ':status': 200,
-                        ...common_headers
+                        ...response_headers
                     }, {
                         endStream: true
                     });
@@ -134,7 +138,7 @@ class Http2DuplexServer extends EventEmitter {
                 sink.on('finish', () => {
                     stream.respond({
                         ':status': 200,
-                        ...common_headers
+                        ...response_headers
                     }, {
                         endStream: true
                     });
@@ -146,7 +150,7 @@ class Http2DuplexServer extends EventEmitter {
             default: {
                 stream.respond({
                     ':status': 405,
-                    ...common_headers
+                    ...response_headers
                 }, {
                     endStream: true
                 });
