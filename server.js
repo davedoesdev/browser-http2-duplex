@@ -52,6 +52,8 @@ class Http2DuplexServer extends EventEmitter {
     constructor(http2_server, path, options) {
         super();
 
+        this.path = path;
+        this.options = options;
         this.sessions = new Set();
 
         http2_server.on('session', session => {
@@ -61,78 +63,8 @@ class Http2DuplexServer extends EventEmitter {
                 this.sessions.delete(session);
             });
 
-            session.on('stream', (stream, headers) => {
-                if (headers[':path'] !== path) {
-                    return this.emit('unhandled_stream', stream, headers);
-                }
-
-                this.sessions.add(session);
-
-                const method = headers[':method'];
-
-                switch (method) {
-                    case 'GET': {
-                        const duplex = new ServerDuplex(stream, options);
-                        const id = randomBytes(64).toString('base64');
-                        duplexes.set(id, duplex);
-                        stream.respond({
-                            ':status': 200,
-                            'http2-duplex-id': id,
-                            'Access-Control-Expose-Headers': 'http2-duplex-id',
-                            'Content-Type': 'application/octet-stream',
-                            ...common_headers
-                        });
-                        // Sometimes fetch waits for first byte before resolving
-                        stream.write('a');
-                        this.emit('duplex', duplex, id, headers);
-                        break;
-                    }
-
-                    case 'POST': {
-                        const id = headers['http2-duplex-id'];
-                        const duplex = duplexes.get(id);
-                        if (!duplex) {
-                            return stream.respond({
-                                ':status': 404,
-                                ...common_headers
-                            }, {
-                                endStream: true
-                            });
-                        }
-                        if (headers['http2-duplex-end'] === 'true') {
-                            duplex.push(null);
-                            duplexes.delete(id);
-                            return stream.respond({
-                                ':status': 200,
-                                ...common_headers
-                            }, {
-                                endStream: true
-                            });
-                        }
-                        const sink = duplex.sink();
-                        sink.on('finish', () => {
-                            stream.respond({
-                                ':status': 200,
-                                ...common_headers
-                            }, {
-                                endStream: true
-                            });
-                        });
-                        stream.pipe(sink);
-                        break;
-                    }
-
-                    default: {
-                        stream.respond({
-                            ':status': 405,
-                            ...common_headers
-                        }, {
-                            endStream: true
-                        });
-                        this.emit('warning', new Error(`unknown method: ${method}`));
-                        break;
-                    }
-                }
+            session.on('stream', async (stream, headers, flags, rawHeaders) => {
+                await this.process_stream(stream, headers, flags, rawHeaders, duplexes);
             });
         });
     }
@@ -145,6 +77,85 @@ class Http2DuplexServer extends EventEmitter {
                 this.emit('warning', ex);
             }
         }
+    }
+
+    async process_stream(stream, headers, flags, rawHeaders, duplexes) {
+        if (headers[':path'] !== this.path) {
+            this.emit('unhandled_stream', stream, headers, flags, rawHeaders);
+            return false;
+        }
+
+        this.sessions.add(stream.session);
+
+        const method = headers[':method'];
+
+        switch (method) {
+            case 'GET': {
+                const duplex = new ServerDuplex(stream, this.options);
+                const id = randomBytes(64).toString('base64');
+                duplexes.set(id, duplex);
+                stream.respond({
+                    ':status': 200,
+                    'http2-duplex-id': id,
+                    'Access-Control-Expose-Headers': 'http2-duplex-id',
+                    'Content-Type': 'application/octet-stream',
+                    ...common_headers
+                });
+                // Sometimes fetch waits for first byte before resolving
+                stream.write('a');
+                this.emit('duplex', duplex, id, headers);
+                break;
+            }
+
+            case 'POST': {
+                const id = headers['http2-duplex-id'];
+                const duplex = duplexes.get(id);
+                if (!duplex) {
+                    stream.respond({
+                        ':status': 404,
+                        ...common_headers
+                    }, {
+                        endStream: true
+                    });
+                    return true;
+                }
+                if (headers['http2-duplex-end'] === 'true') {
+                    duplex.push(null);
+                    duplexes.delete(id);
+                    stream.respond({
+                        ':status': 200,
+                        ...common_headers
+                    }, {
+                        endStream: true
+                    });
+                    return true;
+                }
+                const sink = duplex.sink();
+                sink.on('finish', () => {
+                    stream.respond({
+                        ':status': 200,
+                        ...common_headers
+                    }, {
+                        endStream: true
+                    });
+                });
+                stream.pipe(sink);
+                break;
+            }
+
+            default: {
+                stream.respond({
+                    ':status': 405,
+                    ...common_headers
+                }, {
+                    endStream: true
+                });
+                this.emit('warning', new Error(`unknown method: ${method}`));
+                break;
+            }
+        }
+
+        return true;
     }
 }
 
