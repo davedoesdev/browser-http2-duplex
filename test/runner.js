@@ -80,7 +80,7 @@ export default function(http2_client_duplex_bundle, done) {
                 };
                 expected_warnings.push('foobar');
             }
-            await http2_duplex_server.close();
+            http2_duplex_server.detach();
             expect(warnings).to.eql(expected_warnings);
             await promisify(http2_server.close.bind(http2_server))();
         });

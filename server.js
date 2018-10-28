@@ -48,6 +48,7 @@ class Http2DuplexServer extends EventEmitter {
     constructor(http2_server, path, options) {
         super();
 
+        this.http2_server = http2_server;
         this.path = path;
         this.options = options;
         this.sessions = new Set();
@@ -56,29 +57,22 @@ class Http2DuplexServer extends EventEmitter {
             'Cache-Control': 'max-age=0, no-cache, must-revalidate, proxy-revalidate'
         };
 
-        http2_server.on('session', session => {
-            const duplexes = new Map();
-
-            session.on('close', () => {
-                this.sessions.delete(session);
-            });
-
-            session.on('stream', async (stream, headers, flags, raw_headers) => {
-                await this.process_stream(
-                    stream, headers, flags, raw_headers,
-                    duplexes, { ...this.common_headers });
-            });
-        });
+        this.session_listener = this.process_session.bind(this);
+        http2_server.on('session', this.session_listener);
     }
 
-    async close() {
-        for (let session of this.sessions) {
-            try {
-                session.destroy();
-            } catch (ex) {
-                this.emit('warning', ex);
-            }
-        }
+    async process_session(session) {
+        const duplexes = new Map();
+
+        session.on('close', () => {
+            this.sessions.delete(session);
+        });
+
+        session.on('stream', async (stream, headers, flags, raw_headers) => {
+            await this.process_stream(
+                stream, headers, flags, raw_headers,
+                duplexes, { ...this.common_headers });
+        });
     }
 
     async process_stream(stream, headers, flags, raw_headers,
@@ -160,6 +154,18 @@ class Http2DuplexServer extends EventEmitter {
         }
 
         return true;
+    }
+
+    detach() {
+        this.http2_server.removeListener('session', this.session_listener);
+        for (let session of this.sessions) {
+            session.removeAllListeners('stream');
+            try {
+                session.destroy();
+            } catch (ex) {
+                this.emit('warning', ex);
+            }
+        }
     }
 }
 
