@@ -2,7 +2,7 @@
 import fs from 'fs';
 import { join } from 'path';
 import { createSecureServer } from 'http2';
-import make_http2_duplex_server from '..';
+import { Http2DuplexServer } from '..';
 const { readFile } = fs.promises;
 const cert_dir = join(__dirname, '..', 'test', 'certs');
 
@@ -12,7 +12,7 @@ const cert_dir = join(__dirname, '..', 'test', 'certs');
         cert: await readFile(join(cert_dir, 'server.crt'))
     });
 
-    const http2_duplex_server = await make_http2_duplex_server(
+    const http2_duplex_server = new Http2DuplexServer(
         http2_server,
         '/example'
     );

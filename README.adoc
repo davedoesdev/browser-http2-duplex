@@ -56,7 +56,7 @@ clients.
 import fs from 'fs';
 import { join } from 'path';
 import { createSecureServer } from 'http2';
-import make_http2_duplex_server from 'http2-duplex';
+import { Http2DuplexServer } from 'http2-duplex';
 const { readFile } = fs.promises;
 const cert_dir = join(__dirname, 'certs');
 
@@ -66,7 +66,7 @@ const cert_dir = join(__dirname, 'certs');
         cert: await readFile(join(cert_dir, 'server.crt'))
     });
 
-    const http2_duplex_server = await make_http2_duplex_server( // <2>
+    const http2_duplex_server = new Http2DuplexServer( // <2>
         http2_server,
         '/example'
     );

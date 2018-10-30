@@ -7,7 +7,7 @@ import { randomBytes, createHash } from 'crypto';
 import { PassThrough } from 'stream';
 import { expect } from 'chai';
 import Mocha from 'mocha';
-import make_http2_duplex_server from 'http2-duplex/server.js';
+import { Http2DuplexServer } from 'http2-duplex/server.js';
 
 const { readFile, writeFile } = fs.promises;
 
@@ -33,7 +33,7 @@ export default function(http2_client_duplex_bundle, done) {
                 cert: await readFile(join(__dirname, 'certs', 'server.crt'))
             });
 
-            http2_duplex_server = await make_http2_duplex_server(
+            http2_duplex_server = new Http2DuplexServer(
                 http2_server,
                 '/test', {
                     highWaterMark: 100

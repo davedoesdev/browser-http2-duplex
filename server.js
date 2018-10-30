@@ -44,7 +44,7 @@ class ServerDuplex extends Duplex {
     }
 }
 
-class Http2DuplexServer extends EventEmitter {
+export class Http2DuplexServer extends EventEmitter {
     constructor(http2_server, path, options) {
         super();
 
@@ -101,7 +101,7 @@ class Http2DuplexServer extends EventEmitter {
                 });
                 // Sometimes fetch waits for first byte before resolving
                 stream.write('a');
-                this.emit('duplex', duplex, id, headers);
+                this.emit('duplex', duplex, id, headers, flags, raw_headers);
                 break;
             }
 
@@ -167,8 +167,4 @@ class Http2DuplexServer extends EventEmitter {
             }
         }
     }
-}
-
-export default async function (http2_server, path, options) {
-    return new Http2DuplexServer(http2_server, path, options);
 }
