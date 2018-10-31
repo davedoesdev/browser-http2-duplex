@@ -89,19 +89,8 @@ export class Http2DuplexServer extends EventEmitter {
 
         switch (method) {
             case 'GET': {
-                const duplex = new ServerDuplex(stream, this.options);
-                const id = randomBytes(64).toString('base64');
-                duplexes.set(id, duplex);
-                stream.respond({
-                    ':status': 200,
-                    'http2-duplex-id': id,
-                    'Access-Control-Expose-Headers': 'http2-duplex-id',
-                    'Content-Type': 'application/octet-stream',
-                    ...response_headers
-                });
-                // Sometimes fetch waits for first byte before resolving
-                stream.write('a');
-                this.emit('duplex', duplex, id, headers, flags, raw_headers);
+                await this.new_stream(stream, headers, flags, raw_headers,
+                    duplexes, response_headers);
                 break;
             }
 
@@ -154,6 +143,23 @@ export class Http2DuplexServer extends EventEmitter {
         }
 
         return true;
+    }
+
+    async new_stream(stream, headers, flags, raw_headers,
+        duplexes, response_headers) {
+        const duplex = new ServerDuplex(stream, this.options);
+        const id = randomBytes(64).toString('base64');
+        duplexes.set(id, duplex);
+        stream.respond({
+            ':status': 200,
+            'http2-duplex-id': id,
+            'Access-Control-Expose-Headers': 'http2-duplex-id',
+            'Content-Type': 'application/octet-stream',
+            ...response_headers
+        });
+        // Sometimes fetch waits for first byte before resolving
+        stream.write('a');
+        this.emit('duplex', duplex, id, headers, flags, raw_headers);
     }
 
     detach() {
