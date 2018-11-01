@@ -1,8 +1,6 @@
 /*eslint-env node, browser */
 import { Duplex } from 'stream';
 
-export const id_header = 'http2-duplex-id';
-
 export class ResponseError extends Error {
     constructor(response) {
         super(response.statusText);
