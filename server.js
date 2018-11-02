@@ -104,7 +104,7 @@ export class Http2DuplexServer extends EventEmitter {
                     }, {
                         endStream: true
                     });
-                    return true;
+                    break;
                 }
                 if (headers['http2-duplex-end'] === 'true') {
                     duplex.push(null);
@@ -115,7 +115,7 @@ export class Http2DuplexServer extends EventEmitter {
                     }, {
                         endStream: true
                     });
-                    return true;
+                    break;
                 }
                 const sink = duplex.sink();
                 sink.on('finish', () => {
@@ -161,6 +161,7 @@ export class Http2DuplexServer extends EventEmitter {
         stream.write('a');
         this.emit('duplex', duplex, id, headers, flags, raw_headers,
             duplexes, response_headers);
+        return duplex;
     }
 
     detach() {
