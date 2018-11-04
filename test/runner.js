@@ -709,7 +709,7 @@ export default function(http2_client_duplex_bundle, done) {
                         ':path': '/test',
                         'http2-duplex-id': headers['http2-duplex-id']
                     });
-                    stream2.on('response', headers => {
+                    stream2.on('response', () => {
                         cb(new Error('should not be called'));
                     });
                     stream2.on('close', () => {
