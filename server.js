@@ -3,6 +3,17 @@ import EventEmitter from 'events';
 import { randomBytes } from 'crypto';
 import { Duplex, Writable } from 'stream';
 
+function ex_to_err(obj, method) {
+    const orig_method = obj[method];
+    obj[method] = function (...args) {
+        try {
+            orig_method.apply(this, args);
+        } catch (ex) {
+            obj.emit('error', ex);
+        }
+    };
+}
+
 class ServerDuplex extends Duplex {
     constructor(stream, options) {
         super(options);
@@ -85,6 +96,9 @@ export class Http2DuplexServer extends EventEmitter {
 
         this.sessions.add(stream.session);
 
+        ex_to_err(stream, 'respond');
+        ex_to_err(stream, 'close');
+
         const method = headers[':method'];
 
         switch (method) {
@@ -117,6 +131,9 @@ export class Http2DuplexServer extends EventEmitter {
                     });
                     break;
                 }
+                duplex.on('close', () => {
+                    stream.close();
+                });
                 const sink = duplex.sink();
                 sink.on('finish', () => {
                     stream.respond({
@@ -150,6 +167,10 @@ export class Http2DuplexServer extends EventEmitter {
         const duplex = new ServerDuplex(stream, this.options);
         const id = randomBytes(64).toString('base64');
         duplexes.set(id, duplex);
+        duplex.on('close', () => {
+            duplexes.delete(id);
+            stream.close();
+        });
         stream.respond({
             ':status': 200,
             'http2-duplex-id': id,

@@ -40,10 +40,14 @@ export default function(http2_client_duplex_bundle, done) {
                 });
 
             http2_duplex_server.on('duplex', (duplex, id) => {
-                duplex.on('finish', () => {
+                const done = () => {
                     expect(server_duplexes.has(id)).to.be.true;
                     server_duplexes.delete(id);
-                });
+                    duplex.removeListener('finish', done);
+                    duplex.removeListener('close', done);
+                };
+                duplex.on('finish', done);
+                duplex.on('close', done);
                 expect(server_duplexes.has(id)).to.be.false;
                 duplex.randomBytes = randomBytes;
                 duplex.createHash = createHash;
@@ -100,11 +104,23 @@ export default function(http2_client_duplex_bundle, done) {
             }
 
             for (let d of server_duplexes.values()) {
-                d.on('finish', check);
+                const check2 = () => {
+                    d.removeListener('finish', check2);
+                    d.removeListener('close', check2);
+                    check();
+                };
+                d.on('finish', check2);
+                d.on('close', check2);
             }
 
             for (let d of client_duplexes.values()) {
-                d.on('end', check);
+                const check2 = () => {
+                    d.removeListener('end', check2);
+                    d.removeListener('close', check2);
+                    check();
+                };
+                d.on('end', check2);
+                d.on('close', check2);
             }
 
             check();
@@ -635,6 +651,22 @@ export default function(http2_client_duplex_bundle, done) {
                 only_browser_to_server: true
             });
 
+            test('close event', function (sender, receiver, cb) {
+                sender.on('readable', function () {
+                    while (this.read() !== null);
+                });
+                sender.on('error', function (err) {
+                    expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                    expect(err.response.status).to.equal(404);
+                    expect(receiver.stream.closed).to.be.true;
+                    cb();
+                });
+                receiver.destroy();
+                sender.end();
+            }, {
+                only_browser_to_server: true
+            });
+
             test('emit client make error', function (err, cb) {
                 expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
                 expect(err.response.status).to.equal(404);
@@ -644,7 +676,7 @@ export default function(http2_client_duplex_bundle, done) {
                 url_suffix: '_does_not_exist',
                 expect_client_err: true
             });
-            
+
             it('unknown method', function (cb) {
                 const session = connect(
                     `https://localhost:${port}`, {
@@ -657,7 +689,55 @@ export default function(http2_client_duplex_bundle, done) {
                 stream.on('response', headers => {
                     expect(headers[':status']).to.equal(405);
                     expect(warnings).to.eql([ 'unknown method: HEAD' ]);
-                    cb();
+                    session.close(cb);
+                });
+            });
+
+            it('close active POST request when duplex closes', function (cb) {
+                let duplex, headers;
+                function next() {
+                    if (!duplex || !headers) {
+                        return;
+                    }
+                    duplex.stream.session.once('stream', stream => {
+                        stream.on('error', err => {
+                            expect(err.code).to.equal('ERR_HTTP2_INVALID_STREAM');
+                        });
+                    });
+                    const stream2 = session.request({
+                        ':method': 'POST',
+                        ':path': '/test',
+                        'http2-duplex-id': headers['http2-duplex-id']
+                    });
+                    stream2.on('response', headers => {
+                        cb(new Error('should not be called'));
+                    });
+                    stream2.on('close', () => {
+                        session.close(cb);
+                    });
+                    setTimeout(() => {
+                        duplex.destroy();
+                    }, 1000);
+                }
+                http2_duplex_server.once('duplex', d => {
+                    duplex = d;
+                    next();
+                });
+                const session = connect(
+                    `https://localhost:${port}`, {
+                        ca: fs.readFileSync(join(__dirname, 'certs', 'ca.crt'))
+                    });
+                const stream = session.request({
+                    ':method': 'GET',
+                    ':path': '/test'
+                });
+                stream.on('readable', function () {
+                    while (this.read() !== null);
+                });
+                stream.on('response', function (h) {
+                    expect(h[':status']).to.equal(200);
+                    headers = h;
+                    next();
                 });
             });
         }
