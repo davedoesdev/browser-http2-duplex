@@ -16,9 +16,14 @@ class FetchDuplex extends Duplex {
         this.id = response.headers.get('http2-duplex-id');
         this.options = options;
         this.first = true;
+        this.reading = false;
     }
 
     async _read() {
+        if (this.reading) {
+            return;
+        }
+        this.reading = true;
         try {
             let value, done;
             do {
@@ -35,6 +40,8 @@ class FetchDuplex extends Duplex {
             } while (!done);
         } catch (ex) {
             this.emit('error', ex);
+        } finally {
+            this.reading = false;
         }
     }
 
