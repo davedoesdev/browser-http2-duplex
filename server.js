@@ -131,8 +131,12 @@ export class Http2DuplexServer extends EventEmitter {
                     });
                     break;
                 }
-                duplex.on('close', () => {
+                const on_close = () => {
                     stream.close();
+                };
+                duplex.on('close', on_close);
+                stream.on('close', () => {
+                    duplex.removeListener('close', on_close);
                 });
                 const sink = duplex.sink();
                 sink.on('finish', () => {
