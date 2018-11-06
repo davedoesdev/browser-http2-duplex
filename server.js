@@ -51,6 +51,9 @@ class ServerDuplex extends Duplex {
     }
 
     _final(cb) {
+        if (this.stream._writableState.ending) {
+            return cb();
+        }
         this.stream.end(cb);
     }
 }
@@ -77,6 +80,9 @@ export class Http2DuplexServer extends EventEmitter {
 
         session.on('close', () => {
             this.sessions.delete(session);
+            for (let duplex of duplexes.values()) {
+                duplex.push(null);
+            }
         });
 
         session.on('stream', async (stream, headers, flags, raw_headers) => {

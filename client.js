@@ -39,6 +39,7 @@ class FetchDuplex extends Duplex {
                 }
             } while (!done);
         } catch (ex) {
+            this.push(null);
             this.emit('error', ex);
         } finally {
             this.reading = false;

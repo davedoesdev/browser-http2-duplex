@@ -131,8 +131,13 @@ export default function(http2_client_duplex_bundle, done) {
                 it: it,
                 simultaneous: true,
                 highWaterMark: 100,
-                url_suffix: ''
+                url_suffix: '',
+                max: n
             }, options);
+
+            if (n > options.max) {
+                return;
+            }
 
             options.it(name, function (cb) {
                 const ths = this;
@@ -665,6 +670,31 @@ export default function(http2_client_duplex_bundle, done) {
                 sender.end();
             }, {
                 only_browser_to_server: true
+            });
+
+            test('session close', function (sender, receiver, cb) {
+                receiver.on('finish', cb);
+                receiver.on('end', function () {
+                    this.end();
+                });
+                receiver.on('readable', function () {
+                    while (this.read() !== null);
+                });
+                sender.on('readable', function () {
+                    while (this.read() !== null);
+                });
+                sender.on('error', function (err) {
+                    if (err instanceof http2_client_duplex_bundle.ResponseError) {
+                        expect(err.response.status).to.equal(404);
+                    } else {
+                        expect(err.message).to.equal('network error');
+                    }
+                });
+                receiver.stream.session.destroy();
+                sender.end();
+            }, {
+                only_browser_to_server: true,
+                max: 1
             });
 
             test('emit client make error', function (err, cb) {
