@@ -38,6 +38,7 @@ export default function(http2_client_duplex_bundle, done) {
                 '/test', {
                     highWaterMark: 100
                 });
+            http2_duplex_server.attach(); // check ignores if already attached
 
             http2_duplex_server.on('duplex', (duplex, id) => {
                 const done = () => {
@@ -85,6 +86,7 @@ export default function(http2_client_duplex_bundle, done) {
                 expected_warnings.push('foobar');
             }
             http2_duplex_server.detach();
+            http2_duplex_server.detach(); // check ignores if already detached
             expect(warnings).to.eql(expected_warnings);
             await promisify(http2_server.close.bind(http2_server))();
         });

@@ -1,7 +1,7 @@
 {
   "name": "http2-duplex",
   "description": "Full-duplex stream emulation over HTTP/2",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "homepage": "https://github.com/davedoesdev/http2-duplex",
   "author": {
     "name": "David Halls",

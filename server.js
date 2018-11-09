@@ -71,12 +71,14 @@ export class Http2DuplexServer extends EventEmitter {
             'Cache-Control': 'max-age=0, no-cache, must-revalidate, proxy-revalidate'
         };
 
-        this.session_listener = this.process_session.bind(this);
         this.attach();
     }
 
     attach() {
-        this.http2_server.on('session', this.session_listener);
+        if (!this.session_listener) {
+            this.session_listener = this.process_session.bind(this);
+            this.http2_server.on('session', this.session_listener);
+        }
     }
 
     async process_session(session) {
@@ -200,13 +202,16 @@ export class Http2DuplexServer extends EventEmitter {
     }
 
     detach() {
-        this.http2_server.removeListener('session', this.session_listener);
-        for (let session of this.sessions) {
-            session.removeAllListeners('stream');
-            try {
-                session.destroy();
-            } catch (ex) {
-                this.emit('warning', ex);
+        if (this.session_listener) {
+            this.http2_server.removeListener('session', this.session_listener);
+            this.session_listener = null;
+            for (let session of this.sessions) {
+                session.removeAllListeners('stream');
+                try {
+                    session.destroy();
+                } catch (ex) {
+                    this.emit('warning', ex);
+                }
             }
         }
     }
