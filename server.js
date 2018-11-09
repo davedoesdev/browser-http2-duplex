@@ -72,7 +72,11 @@ export class Http2DuplexServer extends EventEmitter {
         };
 
         this.session_listener = this.process_session.bind(this);
-        http2_server.on('session', this.session_listener);
+        this.attach();
+    }
+
+    attach() {
+        this.http2_server.on('session', this.session_listener);
     }
 
     async process_session(session) {
