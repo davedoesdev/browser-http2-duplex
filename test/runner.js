@@ -58,7 +58,6 @@ export default function(http2_client_duplex_bundle, done) {
             });
 
             http2_duplex_server.on('unhandled_stream', function (stream) {
-                this.sessions.add(stream.session);
                 stream.respond({
                     ':status': 404
                 }, {
