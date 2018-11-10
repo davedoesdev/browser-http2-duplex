@@ -40,7 +40,8 @@ export default function(http2_client_duplex_bundle, done) {
                 });
             http2_duplex_server.attach(); // check ignores if already attached
 
-            http2_duplex_server.on('duplex', (duplex, id) => {
+            http2_duplex_server.on('duplex', function (duplex, id) {
+                this.own_stream(duplex.stream); // check ignores if already owned
                 const done = () => {
                     expect(server_duplexes.has(id)).to.be.true;
                     server_duplexes.delete(id);

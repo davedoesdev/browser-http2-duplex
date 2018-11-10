@@ -84,6 +84,8 @@ export class Http2DuplexServer extends EventEmitter {
     async process_session(session) {
         const duplexes = new Map();
 
+        this.sessions.add(session);
+
         session.on('close', () => {
             this.sessions.delete(session);
             for (let duplex of duplexes.values()) {
@@ -98,6 +100,14 @@ export class Http2DuplexServer extends EventEmitter {
         });
     }
 
+    own_stream(stream) {
+        if (!stream.http2_duplex_owned) {
+            ex_to_err(stream, 'respond');
+            ex_to_err(stream, 'close');
+            stream.http2_duplex_owned = true;
+        }
+    }
+
     async process_stream(stream, headers, flags, raw_headers,
         duplexes, response_headers) {
         if (headers[':path'] !== this.path) {
@@ -106,10 +116,7 @@ export class Http2DuplexServer extends EventEmitter {
             return false;
         }
 
-        this.sessions.add(stream.session);
-
-        ex_to_err(stream, 'respond');
-        ex_to_err(stream, 'close');
+        this.own_stream(stream);
 
         const method = headers[':method'];
 
@@ -201,17 +208,21 @@ export class Http2DuplexServer extends EventEmitter {
         return duplex;
     }
 
+    destroy_session(session) {
+        try {
+            session.destroy();
+        } catch (ex) {
+            this.emit('warning', ex);
+        }
+    }
+
     detach() {
         if (this.session_listener) {
             this.http2_server.removeListener('session', this.session_listener);
             this.session_listener = null;
             for (let session of this.sessions) {
                 session.removeAllListeners('stream');
-                try {
-                    session.destroy();
-                } catch (ex) {
-                    this.emit('warning', ex);
-                }
+                this.destroy_session(session);
             }
         }
     }
