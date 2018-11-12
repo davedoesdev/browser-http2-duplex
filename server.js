@@ -214,9 +214,9 @@ export class Http2DuplexServer extends EventEmitter {
         return duplex;
     }
 
-    destroy_session(session) {
+    destroy(obj) {
         try {
-            session.destroy();
+            obj.destroy();
         } catch (ex) {
             this.emit('warning', ex);
         }
@@ -228,7 +228,7 @@ export class Http2DuplexServer extends EventEmitter {
             this.session_listener = null;
             for (let session of this.sessions) {
                 session.removeAllListeners('stream');
-                this.destroy_session(session);
+                this.destroy(session);
             }
         }
     }
