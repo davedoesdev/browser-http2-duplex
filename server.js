@@ -190,7 +190,13 @@ export class Http2DuplexServer extends EventEmitter {
         const duplex = new ServerDuplex(stream, this.options);
         const id = randomBytes(64).toString('base64');
         duplexes.set(id, duplex);
+        ex_to_err(duplex, 'end');
+        const on_close = () => {
+            duplex.end();
+        };
+        stream.on('close', on_close);
         duplex.on('close', () => {
+            stream.removeListener('close', on_close);
             duplexes.delete(id);
             stream.close();
         });
