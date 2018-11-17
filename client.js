@@ -34,6 +34,7 @@ class FetchDuplex extends Duplex {
                     // Sometimes fetch waits for first byte before resolving
                     // so server-side sends initial dummy byte
                     this.first = false;
+                    done = !this.push(Buffer.from(value.subarray(1)));
                 } else {
                     done = !this.push(Buffer.from(value));
                 }
