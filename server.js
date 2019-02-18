@@ -93,11 +93,15 @@ export class Http2DuplexServer extends EventEmitter {
             }
         });
 
-        session.on('stream', async (stream, headers, flags, raw_headers) => {
+        const stream_listener = async (stream, headers, flags, raw_headers) => {
             await this.process_stream(
                 stream, headers, flags, raw_headers,
                 duplexes, { ...this.common_headers });
-        });
+        };
+
+        session.on('stream', stream_listener);
+
+        return stream_listener;
     }
 
     own_stream(stream) {
