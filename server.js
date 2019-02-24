@@ -201,11 +201,11 @@ export class Http2DuplexServer extends EventEmitter {
             stream.close();
         });
         stream.respond({
+            ...response_headers,
             ':status': 200,
             'http2-duplex-id': id,
             'Access-Control-Expose-Headers': 'http2-duplex-id',
-            'Content-Type': 'application/octet-stream',
-            ...response_headers
+            'Content-Type': 'application/octet-stream'
         });
         // Sometimes fetch waits for first byte before resolving
         stream.write('a');
