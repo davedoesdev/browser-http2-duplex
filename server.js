@@ -24,11 +24,13 @@ class ServerDuplex extends Duplex {
     }
 
     sink() {
+        const ths = this;
         return new Writable(Object.assign({}, this.options, {
-            write: (chunk, encoding, cb) => {
-                this.chunks.push({ chunk, cb });
-                if (this.need_chunk) {
-                    this._read();
+            write: function (chunk, encoding, cb) {
+                ths.chunks.push({ chunk, cb });
+                this.emit('written', chunk.length);
+                if (ths.need_chunk) {
+                    ths._read();
                 }
             }
         }));
@@ -139,6 +141,7 @@ export class Http2DuplexServer extends EventEmitter {
                     });
                     break;
                 }
+
                 if (headers['http2-duplex-end'] === 'true') {
                     duplex.push(null);
                     duplexes.delete(id);
@@ -150,6 +153,7 @@ export class Http2DuplexServer extends EventEmitter {
                     });
                     break;
                 }
+
                 const on_close = () => {
                     stream.close();
                 };
@@ -157,16 +161,34 @@ export class Http2DuplexServer extends EventEmitter {
                 stream.on('close', () => {
                     duplex.removeListener('close', on_close);
                 });
-                const sink = duplex.sink();
-                sink.on('finish', () => {
+
+                const respond = () => {
                     stream.respond({
                         ':status': 200,
                         ...response_headers
                     }, {
                         endStream: true
                     });
-                });
-                stream.pipe(sink);
+                };
+
+                const content_length = parseInt(headers['content-length'], 10);
+                if (content_length === 0) {
+                    respond();
+                } else {
+                    const sink = duplex.sink();
+                    sink.on('finish', respond);
+                    stream.pipe(sink);
+                    if ((content_length !== NaN) && (content_length > 0)) {
+                        let received = 0;
+                        sink.on('written', len => {
+                            received += len;
+                            if (received === content_length) {
+                                stream.push(null);
+                            }
+                        });
+                    }
+                }
+
                 break;
             }
 

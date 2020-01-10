@@ -181,7 +181,6 @@ export default function(http2_client_duplex_bundle, done) {
                                 f.call(ths, sd, cd, check2);
                             });
                         }
-
                     }
                 }
 
