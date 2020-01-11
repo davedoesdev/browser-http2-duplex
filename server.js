@@ -178,7 +178,7 @@ export class Http2DuplexServer extends EventEmitter {
                     const sink = duplex.sink();
                     sink.on('finish', respond);
                     stream.pipe(sink);
-                    if ((content_length !== NaN) && (content_length > 0)) {
+                    if (content_length > 0) {
                         let received = 0;
                         sink.on('written', len => {
                             received += len;
