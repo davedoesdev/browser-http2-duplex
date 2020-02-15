@@ -19,6 +19,10 @@ window.addEventListener('unhandledrejection', function (ev) {
     done(ev.reason);
 });
 
+window.onerror = function (message, source, lineno, colno, err) {
+    done(err);
+};
+
 console.log = function () { // eslint-disable-line no-console
     process.stdout.write(util.format.apply(this, arguments));
     process.stdout.write(os.EOL);
