@@ -619,6 +619,7 @@ export default function(http2_client_duplex_bundle, done) {
                     sender.id = orig_id;
                     expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
                     expect(err.response.status).to.equal(404);
+                    expect(err.message).to.equal('404');
                     this.on('end', cb);
                     this.end();
                 });
@@ -642,6 +643,7 @@ export default function(http2_client_duplex_bundle, done) {
                     sender.id = orig_id;
                     expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
                     expect(err.response.status).to.equal(404);
+                    expect(err.message).to.equal('404');
                     this.on('end', cb);
                     this._final(() => {});
                 });
@@ -664,6 +666,7 @@ export default function(http2_client_duplex_bundle, done) {
                 sender.on('error', function (err) {
                     expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
                     expect(err.response.status).to.equal(404);
+                    expect(err.message).to.equal('404');
                     expect(receiver.stream.closed).to.be.true;
                     cb();
                 });
@@ -687,6 +690,7 @@ export default function(http2_client_duplex_bundle, done) {
                 sender.on('error', function (err) {
                     if (err instanceof http2_client_duplex_bundle.ResponseError) {
                         expect(err.response.status).to.equal(404);
+                        expect(err.message).to.equal('404');
                     } else {
                         expect(err.message).to.equal('network error');
                     }
@@ -701,6 +705,7 @@ export default function(http2_client_duplex_bundle, done) {
             test('emit client make error', function (err, cb) {
                 expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
                 expect(err.response.status).to.equal(404);
+                expect(err.message).to.equal('404');
                 cb();
             }, {
                 only_browser_to_server: true,
