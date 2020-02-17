@@ -3,7 +3,7 @@ import { Duplex } from 'stream';
 
 export class ResponseError extends Error {
     constructor(response) {
-        super(response.statusText);
+        super(response.statusText || String(response.status));
         this.response = response;
     }
 }
