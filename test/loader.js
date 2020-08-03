@@ -5,12 +5,14 @@ const util = require('util');
 const os = require('os');
 
 function done(err) {
-    require('nw.gui').App.quit();
     if (err) {
         if (process.env.TEST_ERR_FILE) {
             require('fs').writeFileSync(process.env.TEST_ERR_FILE, '');
         }
         process.stderr.write(`${err.stack}\n`);
+    }
+    require('nw.gui').App.quit();
+    if (err) {
         throw err;
     }
 }
@@ -44,7 +46,7 @@ console.trace = function trace() { // eslint-disable-line no-console
 export default function() {
     try {
         //nw.Window.get().showDevTools();
-        require('./load_runner.js')(http2_client_duplex_bundle, done);
+        require('./load_runner.cjs')(http2_client_duplex_bundle, done);
     } catch (ex) {
         done(ex);
     }

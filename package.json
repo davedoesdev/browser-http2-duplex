@@ -1,7 +1,7 @@
 {
   "name": "http2-duplex",
   "description": "Full-duplex stream emulation over HTTP/2",
-  "version": "4.4.4",
+  "version": "5.0.0",
   "homepage": "https://github.com/davedoesdev/http2-duplex",
   "author": {
     "name": "David Halls",
@@ -15,8 +15,8 @@
   "bugs": {
     "url": "https://github.com/davedoesdev/http2-duplex/issues"
   },
-  "main": "index.js",
-  "module": "server.js",
+  "type": "module",
+  "main": "server.js",
   "browser": "client.js",
   "scripts": {
     "test": "grunt test",
@@ -30,25 +30,25 @@
     "duplex",
     "stream"
   ],
-  "dependencies": {
-    "esm": "^3.2.25"
-  },
   "devDependencies": {
-    "@babel/cli": "^7.7.7",
-    "@babel/core": "^7.7.7",
-    "@babel/plugin-proposal-object-rest-spread": "^7.7.7",
+    "@babel/cli": "^7.10.5",
+    "@babel/core": "^7.11.0",
+    "@babel/plugin-proposal-object-rest-spread": "^7.11.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.10.4",
+    "babel-eslint": "^10.1.0",
     "babel-plugin-istanbul": "^6.0.0",
     "chai": "^4.2.0",
-    "coveralls": "^3.0.9",
-    "eslint": "^6.8.0",
-    "grunt": "^1.0.4",
-    "grunt-eslint": "^22.0.0",
+    "coveralls": "^3.1.0",
+    "eslint": "^7.6.0",
+    "grunt": "^1.2.1",
+    "grunt-eslint": "^23.0.0",
     "grunt-exec": "^3.0.0",
-    "mocha": "^7.0.0",
+    "mocha": "^8.1.0",
     "nw-builder": "^3.5.7",
-    "nyc": "^15.0.0",
-    "webpack": "^4.41.5",
-    "webpack-cli": "^3.3.10"
+    "nyc": "^15.1.0",
+    "source-map-loader": "^1.0.1",
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12"
   },
   "engines": {
     "node": ">= 10"

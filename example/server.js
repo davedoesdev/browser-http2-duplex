@@ -1,9 +1,11 @@
 /*eslint-env node */
 import fs from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { createSecureServer } from 'http2';
-import { Http2DuplexServer } from '..';
+import { Http2DuplexServer } from '../server.js';
 const { readFile } = fs.promises;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const cert_dir = join(__dirname, '..', 'test', 'certs');
 
 (async function () {

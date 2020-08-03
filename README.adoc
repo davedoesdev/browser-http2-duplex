@@ -26,10 +26,10 @@ But streaming data from the browser to the server using Fetch doesn't work:
 1. Browsers don't implement attaching a `ReadableStream` to a request body yet. Chromium has started to implement it https://bugs.chromium.org/p/chromium/issues/detail?id=688906[here].
 
 2. Even when attaching a `ReadableStream` to a request body has been implemented, you won't get full-duplex behaviour according to
-https://bugs.chromium.org/p/chromium/issues/detail?id=884568#c3[this comment]
+https://bugs.chromium.org/p/chromium/issues/detail?id=688906#c40[this comment]
 from the Chromium team:
 
-> Please note that even if it's implemented it may be different from what you call "full duplex", as currently Chrome don't handle a response until it sends all the request body.
+> It won't be full-duplex. You'll have to send everything before receiving anything (anything sent by the server before that will be buffered).
 
 == Solution
 
@@ -147,7 +147,7 @@ directory. To run the example:
 
 [source,bash]
 ----
-grunt example
+grunt --gruntfile Gruntfile.cjs example
 ----
 
 and then point your browser to https://localhost:7000/client.html.
@@ -167,21 +167,21 @@ link:LICENCE[MIT]
 
 [source,bash]
 ----
-grunt test
+grunt --gruntfile Gruntfile.cjs test
 ----
 
 == Lint
 
 [source,bash]
 ----
-grunt lint
+grunt --gruntfile Gruntfile.cjs lint
 ----
 
 == Coverage
 
 [source,bash]
 ----
-grunt coverage
+grunt --gruntfile Gruntfile.cjs coverage
 ----
 
 https://istanbul.js.org/[Istanbul] results are available

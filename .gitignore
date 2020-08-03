@@ -1,7 +1,7 @@
 /build
 node_modules
 /test/bundle.js
-/test/client.js
-/test/server.js
+/test/bundle.js.map
+/test/instrument
 /example/bundle.js
 /.nyc_output

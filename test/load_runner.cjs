@@ -1,7 +1,7 @@
 /*eslint-env node */
 
-var util = require('util'),
-    os = require('os');
+const util = require('util');
+const os = require('os');
 
 console.log = function () { // eslint-disable-line no-console
     process.stdout.write(util.format.apply(this, arguments));
@@ -21,5 +21,4 @@ console.trace = function trace() { // eslint-disable-line no-console
     this.error(err.stack);
 };
 
-require = require('esm')(module); // eslint-disable-line no-global-assign
-module.exports = require('./runner.js').default;
+module.exports = require('./runner.cjs');

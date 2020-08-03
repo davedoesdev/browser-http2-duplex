@@ -1,17 +1,17 @@
 /*eslint-env node, mocha */
-import fs from 'fs';
-import { join } from 'path';
-import { createSecureServer, connect } from 'http2';
-import { promisify, callbackify } from 'util';
-import { randomBytes, createHash } from 'crypto';
-import { PassThrough } from 'stream';
-import { expect } from 'chai';
-import Mocha from 'mocha';
-import { Http2DuplexServer } from 'http2-duplex/server.js';
+const fs = require('fs');
+const { join } = require('path');
+const { createSecureServer, connect } = require('http2');
+const { promisify, callbackify } = require('util');
+const { randomBytes, createHash } = require('crypto');
+const { PassThrough } = require('stream');
+const { expect } = require('chai');
+const Mocha  = require('mocha');
+const { Http2DuplexServer} = require('http2-duplex/server.js');
 
 const { readFile, writeFile } = fs.promises;
 
-export default function(http2_client_duplex_bundle, done) {
+module.exports = function(http2_client_duplex_bundle, done) {
     const mocha = new Mocha({
         bail: true,
     });
@@ -798,4 +798,4 @@ export default function(http2_client_duplex_bundle, done) {
         }
         done(failures ? new Error('failed') : null);
     });
-}
+};

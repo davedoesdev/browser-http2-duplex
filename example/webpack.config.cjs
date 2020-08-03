@@ -1,5 +1,5 @@
 /*eslint-env node */
-export default {
+module.exports = {
     context: __dirname,
     entry: './bundler.js',
     output: {
