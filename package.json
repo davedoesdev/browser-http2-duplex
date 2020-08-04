@@ -19,8 +19,8 @@
   "main": "server.js",
   "browser": "client.js",
   "scripts": {
-    "test": "grunt test",
-    "ci": "grunt lint coverage coveralls"
+    "test": "grunt --gruntfile Gruntfile.cjs test",
+    "ci": "grunt --gruntfile Gruntfile.cjs lint coverage coveralls"
   },
   "directories": {
     "test": "test"
