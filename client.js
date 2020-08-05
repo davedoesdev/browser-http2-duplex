@@ -1,4 +1,5 @@
 /*eslint-env node, browser */
+/* global TransformStream */
 import { Duplex } from 'stream';
 
 export class ResponseError extends Error {
