@@ -9,14 +9,39 @@ export class ResponseError extends Error {
 }
 
 class FetchDuplex extends Duplex {
-    constructor(url, response, options) {
+    constructor(url, options) {
         super(options);
         this.url = url;
-        this.reader = response.body.getReader();
-        this.id = response.headers.get('http2-duplex-id');
-        this.options = options;
+        this.options = Object.assign({
+            disable_request_streaming: false
+        }, options);
         this.first = true;
         this.reading = false;
+    }
+
+    async init() {
+        const response = await fetch(this.url, Object.assign({
+            cache: 'no-store'
+        }, this.options));
+        if (!response.ok) {
+            throw new ResponseError(response);
+        }
+        this.reader = response.body.getReader();
+        this.id = response.headers.get('http2-duplex-id');
+
+        if (!this.options.disable_request_streaming && !new Request('', {
+            body: new ReadableStream(),
+            method: 'POST',
+        }).headers.has('Content-Type')) {
+            const { readable, writable } = new TransformStream();
+            await fetch(this.url, this._write_options({
+                headers: {
+                    'http2-duplex-single': 'true'
+                },
+                body: readable
+            }));
+            this.writer = writable.getWriter();
+        }
     }
 
     async _read() {
@@ -47,19 +72,29 @@ class FetchDuplex extends Duplex {
         }
     }
 
+    _write_options(extra_options) {
+        const options = Object.assign({
+            method: 'POST',
+            cache: 'no-store',
+            headers: {}
+        }, extra_options, this.options);
+        options.headers = Object.assign({
+            'http2-duplex-id': this.id,
+            'Content-Type': 'application/octet-stream'
+        }, options.headers);
+        return options;
+    }
+
     async _write(chunk, encoding, cb) {
         try {
-            const options = Object.assign({
-                method: 'POST',
-                body: Uint8Array.from(chunk),
-                cache: 'no-store',
-                headers: {}
-            }, this.options);
-            options.headers = Object.assign({
-                'http2-duplex-id': this.id,
-                'Content-Type': 'application/octet-stream'
-            }, options.headers);
-            const response = await fetch(this.url, options);
+            const data = Uint8Array.from(chunk);
+            if (this.writer) {
+                await this.writer.ready;
+                return await this.writer.write(data);
+            }
+            const response = await fetch(this.url, this._write_options({
+                body: data
+            }));
             if (!response.ok) {
                 throw new ResponseError(response);
             }
@@ -72,16 +107,15 @@ class FetchDuplex extends Duplex {
 
     async _final(cb) {
         try {
-            const options = Object.assign({
-                method: 'POST',
-                cache: 'no-store',
-                headers: {}
-            }, this.options);
-            options.headers = Object.assign({
-                'http2-duplex-id': this.id,
-                'http2-duplex-end': 'true'
-            }, options.headers);
-            const response = await fetch(this.url, options);
+            if (this.writer) {
+                await this.writer.ready;
+                return await this.writer.close();
+            }
+            const response = await fetch(this.url, this._write_options({
+                headers: {
+                    'http2-duplex-end': 'true'
+                }
+            }));
             if (!response.ok) {
                 throw new ResponseError(response);
             }
@@ -94,11 +128,7 @@ class FetchDuplex extends Duplex {
 }
 
 export default async function (url, options) {
-    const response = await fetch(url, Object.assign({
-        cache: 'no-store'
-    }, options));
-    if (!response.ok) {
-        throw new ResponseError(response);
-    }
-    return new FetchDuplex(url, response, options);
+    const duplex = new FetchDuplex(url, options);
+    await duplex.init();
+    return duplex;
 }

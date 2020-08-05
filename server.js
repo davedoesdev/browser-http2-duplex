@@ -142,15 +142,23 @@ export class Http2DuplexServer extends EventEmitter {
                     break;
                 }
 
-                if (headers['http2-duplex-end'] === 'true') {
-                    duplex.push(null);
-                    duplexes.delete(id);
+                const respond = () => {
                     stream.respond({
                         ':status': 200,
                         ...response_headers
                     }, {
                         endStream: true
                     });
+                };
+
+                const end = () => {
+                    duplex.push(null);
+                    duplexes.delete(id);
+                    respond();
+                };
+
+                if (headers['http2-duplex-end'] === 'true') {
+                    end();
                     break;
                 }
 
@@ -162,14 +170,12 @@ export class Http2DuplexServer extends EventEmitter {
                     duplex.removeListener('close', on_close);
                 });
 
-                const respond = () => {
-                    stream.respond({
-                        ':status': 200,
-                        ...response_headers
-                    }, {
-                        endStream: true
-                    });
-                };
+                if (headers['http2-duplex-single'] == 'true') {
+                    const sink = duplex.sink();
+                    sink.on('finish', end);
+                    stream.pipe(sink);
+                    break;
+                }
 
                 const content_length = parseInt(headers['content-length'], 10);
                 if (content_length === 0) {
@@ -182,7 +188,7 @@ export class Http2DuplexServer extends EventEmitter {
                         let received = 0;
                         sink.on('written', len => {
                             received += len;
-                            if (received === content_length) {
+                            if (received >= content_length) {
                                 stream.push(null);
                             }
                         });
