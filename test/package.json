@@ -2,5 +2,5 @@
   "name": "http2-duplex-test",
   "version": "0.0.1",
   "main": "loader.html",
-  "chromium-args": "--ignore-certificate-errors"
+  "chromium-args": "--ignore-certificate-errors --enable-experimental-web-platform-features"
 }

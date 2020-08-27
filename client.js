@@ -35,7 +35,7 @@ class FetchDuplex extends Duplex {
             method: 'POST',
         }).headers.has('Content-Type')) {
             const { readable, writable } = new TransformStream();
-            await fetch(this.url, this._write_options({
+            fetch(this.url, this._write_options({
                 headers: {
                     'http2-duplex-single': 'true'
                 },
@@ -91,15 +91,16 @@ class FetchDuplex extends Duplex {
             const data = Uint8Array.from(chunk);
             if (this.writer) {
                 await this.writer.ready;
-                return await this.writer.write(data);
+                await this.writer.write(data);
+            } else {
+                const response = await fetch(this.url, this._write_options({
+                    body: data
+                }));
+                if (!response.ok) {
+                    throw new ResponseError(response);
+                }
+                await response.arrayBuffer();
             }
-            const response = await fetch(this.url, this._write_options({
-                body: data
-            }));
-            if (!response.ok) {
-                throw new ResponseError(response);
-            }
-            await response.arrayBuffer();
         } catch (ex) {
             return cb(ex);
         }
@@ -110,17 +111,18 @@ class FetchDuplex extends Duplex {
         try {
             if (this.writer) {
                 await this.writer.ready;
-                return await this.writer.close();
-            }
-            const response = await fetch(this.url, this._write_options({
-                headers: {
-                    'http2-duplex-end': 'true'
+                await this.writer.close();
+            } else {
+                const response = await fetch(this.url, this._write_options({
+                    headers: {
+                        'http2-duplex-end': 'true'
+                    }
+                }));
+                if (!response.ok) {
+                    throw new ResponseError(response);
                 }
-            }));
-            if (!response.ok) {
-                throw new ResponseError(response);
+                await response.arrayBuffer();
             }
-            await response.arrayBuffer();
         } catch (ex) {
             return cb(ex);
         }

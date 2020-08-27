@@ -3,9 +3,12 @@ import EventEmitter from 'events';
 import { randomBytes } from 'crypto';
 import { Duplex, Writable } from 'stream';
 
-function ex_to_err(obj, method) {
+function ex_to_err(obj, method, check) {
     const orig_method = obj[method];
     obj[method] = function (...args) {
+        if (check && check.call(this)) {
+            return;
+        }
         try {
             orig_method.apply(this, args);
         } catch (ex) {
@@ -104,7 +107,9 @@ export class Http2DuplexServer extends EventEmitter {
 
     own_stream(stream) {
         if (!stream.http2_duplex_owned) {
-            ex_to_err(stream, 'respond');
+            ex_to_err(stream, 'respond', function () {
+                return this.closed || this.destroyed;
+            });
             ex_to_err(stream, 'close');
             stream.http2_duplex_owned = true;
         }

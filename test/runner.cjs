@@ -11,13 +11,8 @@ const { Http2DuplexServer} = require('http2-duplex/server.js');
 
 const { readFile, writeFile } = fs.promises;
 
-module.exports = function(http2_client_duplex_bundle, done) {
-    const mocha = new Mocha({
-        bail: true,
-    });
-    mocha.suite.emit('pre-require', global, null, mocha);
-
-    describe('Browser HTTP2 full duplex emulation', function () {
+function run(http2_client_duplex_bundle, disable_request_streaming) {
+    describe(`Browser HTTP2 full duplex emulation (disable_request_streaming=${disable_request_streaming})`, function () {
         let http2_server;
         let http2_duplex_server;
         let port;
@@ -195,7 +190,8 @@ module.exports = function(http2_client_duplex_bundle, done) {
                 for (let i = 0; i < n; ++i) {
                     callbackify(http2_client_duplex_bundle.make)(
                         `https://localhost:${port}/test${options.url_suffix}`, {
-                            highWaterMark: options.highWaterMark
+                            highWaterMark: options.highWaterMark,
+                            disable_request_streaming
                         },
                         (err, d) => {
                             if (err) {
@@ -564,6 +560,8 @@ module.exports = function(http2_client_duplex_bundle, done) {
                     remaining -= n;
                 }
 
+                let wup = 0;
+
                 const in_hash = sender.createHash('sha256');
                 sender.on('readable', function () {
                     let buf;
@@ -571,6 +569,8 @@ module.exports = function(http2_client_duplex_bundle, done) {
                         buf = this.read();
                         if (buf !== null) {
                             in_hash.update(buf);
+                            wup += buf.length;
+                            console.log(wup, buf.length, 1024*1024);
                         }
                     } while (buf !== null);
                 });
@@ -584,7 +584,8 @@ module.exports = function(http2_client_duplex_bundle, done) {
                 random_stream.pipe(sender);
                 random_stream.end();
             }, {
-                only_browser_to_server: true
+                only_browser_to_server: true,
+                it: it.only
             });
 
             test('emit client read error', function (sender, receiver, cb) {
@@ -611,29 +612,33 @@ module.exports = function(http2_client_duplex_bundle, done) {
                 only_browser_to_server: true
             });
 
-            test('emit client write error', function (sender, receiver, cb) {
-                const orig_id = sender.id;
-                sender.id += 'x';
+            if (disable_request_streaming) {
+                // We don't make subsequent requests with request streaming
+                // so changing the ID won't produce an error
+                test('emit client write error', function (sender, receiver, cb) {
+                    const orig_id = sender.id;
+                    sender.id += 'x';
 
-                sender.on('error', function (err) {
-                    sender.id = orig_id;
-                    expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
-                    expect(err.response.status).to.equal(404);
-                    expect(err.message).to.equal('404');
-                    this.on('end', cb);
-                    this.end();
+                    sender.on('error', function (err) {
+                        sender.id = orig_id;
+                        expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                        expect(err.response.status).to.equal(404);
+                        expect(err.message).to.equal('404');
+                        this.on('end', cb);
+                        this.end();
+                    });
+
+                    receiver.on('end', function () {
+                        this.end();
+                    });
+                    receiver.resume();
+
+                    sender.write('hello');
+                    sender.resume();
+                }, {
+                    only_browser_to_server: true
                 });
-
-                receiver.on('end', function () {
-                    this.end();
-                });
-                receiver.resume();
-
-                sender.write('hello');
-                sender.resume();
-            }, {
-                only_browser_to_server: true
-            });
+            }
 
             test('emit client end error', function (sender, receiver, cb) {
                 const orig_id = sender.id;
@@ -779,10 +784,20 @@ module.exports = function(http2_client_duplex_bundle, done) {
         }
 
         tests(1);
-        tests(2);
-        tests(5);
-        tests(10);
+        //tests(2);
+        //tests(5);
+        //tests(10);
     });
+}
+
+module.exports = function(http2_client_duplex_bundle, done) {
+    const mocha = new Mocha({
+        bail: true,
+    });
+    mocha.suite.emit('pre-require', global, null, mocha);
+
+    //run(http2_client_duplex_bundle, true);
+    run(http2_client_duplex_bundle, false);
 
     mocha.run(async function (failures) {
         try {
