@@ -560,8 +560,6 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                     remaining -= n;
                 }
 
-                let wup = 0;
-
                 const in_hash = sender.createHash('sha256');
                 sender.on('readable', function () {
                     let buf;
@@ -569,8 +567,6 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                         buf = this.read();
                         if (buf !== null) {
                             in_hash.update(buf);
-                            wup += buf.length;
-                            console.log(wup, buf.length, 1024*1024);
                         }
                     } while (buf !== null);
                 });
@@ -784,9 +780,9 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
         }
 
         tests(1);
-        //tests(2);
-        //tests(5);
-        //tests(10);
+        tests(2);
+        tests(5);
+        tests(10);
     });
 }
 
