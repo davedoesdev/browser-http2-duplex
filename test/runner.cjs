@@ -471,16 +471,27 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 }
 
                 receiver.once('readable', function () {
-                    expect(this.read().length).to.equal(101);
-                    this.once('readable', function () {
-                        expect(this.read().length).to.equal(50);
+                    const n = this.read().length;
+                    if (disable_request_streaming || (n === 101)) {
+                        expect(n).to.equal(101);
+                        this.once('readable', function () {
+                            expect(this.read().length).to.equal(50);
+                            this.once('readable', function () {
+                                expect(this.read()).not.to.exist;
+                                receiver.end();
+                                receiver_done = true;
+                                check();
+                            });
+                        });
+                    } else {
+                        expect(n).to.equal(151);
                         this.once('readable', function () {
                             expect(this.read()).not.to.exist;
                             receiver.end();
                             receiver_done = true;
                             check();
                         });
-                    });
+                    }
                 });
 
                 sender.once('drain', function () {
@@ -580,8 +591,33 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 random_stream.pipe(sender);
                 random_stream.end();
             }, {
-                only_browser_to_server: true,
-                it: it.only
+                only_browser_to_server: true
+            });
+
+            test('emit server end error', function (sender, receiver, cb) {
+                sender.on('end', function () {
+                    this.end();
+                });
+
+                const orig_write = receiver.write;
+
+                receiver.write = function (data) {
+                    throw new Error(data);
+                };
+
+                receiver.on('end', cb);
+
+                receiver.on('error', function (err) {
+                    expect(err.message).to.equal('dummy');
+                    this.write = orig_write;
+                    this.end();
+                    this.resume();
+                    sender.resume();
+                });
+
+                receiver.end('dummy');
+            }, {
+                only_browser_to_server: true
             });
 
             test('emit client read error', function (sender, receiver, cb) {
@@ -634,74 +670,74 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 }, {
                     only_browser_to_server: true
                 });
-            }
 
-            test('emit client end error', function (sender, receiver, cb) {
-                const orig_id = sender.id;
-                sender.id += 'x';
+                test('emit client end error', function (sender, receiver, cb) {
+                    const orig_id = sender.id;
+                    sender.id += 'x';
 
-                sender.on('error', function (err) {
-                    sender.id = orig_id;
-                    expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
-                    expect(err.response.status).to.equal(404);
-                    expect(err.message).to.equal('404');
-                    this.on('end', cb);
-                    this._final(() => {});
-                });
-
-                receiver.on('end', function () {
-                    this.end();
-                });
-                receiver.resume();
-
-                sender.end();
-                sender.resume();
-            }, {
-                only_browser_to_server: true
-            });
-
-            test('close event', function (sender, receiver, cb) {
-                sender.on('readable', function () {
-                    while (this.read() !== null);
-                });
-                sender.on('error', function (err) {
-                    expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
-                    expect(err.response.status).to.equal(404);
-                    expect(err.message).to.equal('404');
-                    expect(receiver.stream.closed).to.be.true;
-                    cb();
-                });
-                receiver.destroy();
-                sender.end();
-            }, {
-                only_browser_to_server: true
-            });
-
-            test('session close', function (sender, receiver, cb) {
-                receiver.on('finish', cb);
-                receiver.on('end', function () {
-                    this.end();
-                });
-                receiver.on('readable', function () {
-                    while (this.read() !== null);
-                });
-                sender.on('readable', function () {
-                    while (this.read() !== null);
-                });
-                sender.on('error', function (err) {
-                    if (err instanceof http2_client_duplex_bundle.ResponseError) {
+                    sender.on('error', function (err) {
+                        sender.id = orig_id;
+                        expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
                         expect(err.response.status).to.equal(404);
                         expect(err.message).to.equal('404');
-                    } else {
-                        expect(err.message).to.equal('network error');
-                    }
+                        this.on('end', cb);
+                        this._final(() => {});
+                    });
+
+                    receiver.on('end', function () {
+                        this.end();
+                    });
+                    receiver.resume();
+
+                    sender.end();
+                    sender.resume();
+                }, {
+                    only_browser_to_server: true
                 });
-                receiver.stream.session.destroy();
-                sender.end();
-            }, {
-                only_browser_to_server: true,
-                max: 1
-            });
+
+                test('close event', function (sender, receiver, cb) {
+                    sender.on('readable', function () {
+                        while (this.read() !== null);
+                    });
+                    sender.on('error', function (err) {
+                        expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                        expect(err.response.status).to.equal(404);
+                        expect(err.message).to.equal('404');
+                        expect(receiver.stream.closed).to.be.true;
+                        cb();
+                    });
+                    receiver.destroy();
+                    sender.end();
+                }, {
+                    only_browser_to_server: true
+                });
+
+                test('session close', function (sender, receiver, cb) {
+                    receiver.on('finish', cb);
+                    receiver.on('end', function () {
+                        this.end();
+                    });
+                    receiver.on('readable', function () {
+                        while (this.read() !== null);
+                    });
+                    sender.on('readable', function () {
+                        while (this.read() !== null);
+                    });
+                    sender.on('error', function (err) {
+                        if (err instanceof http2_client_duplex_bundle.ResponseError) {
+                            expect(err.response.status).to.equal(404);
+                            expect(err.message).to.equal('404');
+                        } else {
+                            expect(err.message).to.equal('network error');
+                        }
+                    });
+                    receiver.stream.session.destroy();
+                    sender.end();
+                }, {
+                    only_browser_to_server: true,
+                    max: 1
+                });
+            }
 
             test('emit client make error', function (err, cb) {
                 expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
@@ -792,7 +828,7 @@ module.exports = function(http2_client_duplex_bundle, done) {
     });
     mocha.suite.emit('pre-require', global, null, mocha);
 
-    //run(http2_client_duplex_bundle, true);
+    run(http2_client_duplex_bundle, true);
     run(http2_client_duplex_bundle, false);
 
     mocha.run(async function (failures) {
