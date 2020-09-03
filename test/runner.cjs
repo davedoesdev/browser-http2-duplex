@@ -750,6 +750,23 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 expect_client_err: true
             });
 
+            test('forward errors', function (sender, receiver, cb) {
+                sender.on('end', cb);
+                receiver.on('end', function () {
+                    this.end();
+                });
+                receiver.on('error', err => {
+                    expect(err.message).to.equal('foo');
+                    sender.end();
+                    sender.resume();
+                    receiver.resume();
+                });
+                receiver.stream.emit('error', new Error('foo'));
+            }, {
+                only_browser_to_server: true,
+                max: 1
+            });
+
             it('unknown method', function (cb) {
                 const session = connect(
                     `https://localhost:${port}`, {

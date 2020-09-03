@@ -2,6 +2,7 @@
 import EventEmitter from 'events';
 import { randomBytes } from 'crypto';
 import { Duplex, Writable } from 'stream';
+import { constants } from 'http2';
 
 function ex_to_err(obj, method, check) {
     const orig_method = obj[method];
@@ -24,6 +25,11 @@ class ServerDuplex extends Duplex {
         this.options = options;
         this.need_chunk = false;
         this.chunks = [];
+        this.forward_errors(stream);
+    }
+
+    forward_errors(stream) {
+        stream.on('error', err => this.emit('error', err));
     }
 
     sink() {
@@ -111,6 +117,13 @@ export class Http2DuplexServer extends EventEmitter {
                 return this.closed || this.destroyed;
             });
             ex_to_err(stream, 'close');
+            stream.on('aborted', function () {
+                Object.defineProperty(this, 'rstCode', {
+                    get() {
+                        return constants.NGHTTP2_NO_ERROR;
+                    }
+                });
+            });
             stream.http2_duplex_owned = true;
         }
     }
@@ -146,6 +159,8 @@ export class Http2DuplexServer extends EventEmitter {
                     });
                     break;
                 }
+
+                duplex.forward_errors(stream);
 
                 const respond = () => {
                     stream.respond({
