@@ -76,13 +76,12 @@ class FetchDuplex extends Duplex {
     _write_options(extra_options) {
         const options = Object.assign({
             method: 'POST',
-            cache: 'no-store',
-            headers: {}
+            cache: 'no-store'
         }, extra_options, this.options);
         options.headers = Object.assign({
             'http2-duplex-id': this.id,
             'Content-Type': 'application/octet-stream'
-        }, options.headers);
+        }, extra_options.headers, options.headers);
         return options;
     }
 
