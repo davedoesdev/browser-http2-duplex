@@ -1,6 +1,9 @@
 /*eslint-env node, browser */
 /* global TransformStream */
-import { Duplex } from 'stream';
+import stream from 'stream';
+import buffer from 'buffer';
+const { Duplex } = stream;
+const { Buffer } = buffer;
 
 export class ResponseError extends Error {
     constructor(response) {
@@ -11,18 +14,23 @@ export class ResponseError extends Error {
 
 class FetchDuplex extends Duplex {
     constructor(url, options) {
-        super(options);
+        super(Object.assign({
+            autoDestroy: true
+        }, options));
         this.url = url;
         this.options = Object.assign({
             disable_request_streaming: false
         }, options);
         this.first = true;
         this.reading = false;
+        this.abort_reader = new AbortController();
+        this.abort_writer = new AbortController();
     }
 
     async init() {
         const response = await fetch(this.url, Object.assign({
-            cache: 'no-store'
+            cache: 'no-store',
+            signal: this.abort_reader.signal
         }, this.options));
         if (!response.ok) {
             throw new ResponseError(response);
@@ -40,7 +48,11 @@ class FetchDuplex extends Duplex {
                     'http2-duplex-single': 'true'
                 },
                 body: readable
-            }));
+            })).then(response => {
+                if (!response.ok) {
+                    this.destroy(new ResponseError(response));
+                }
+            }).catch(err => this.destroy(err));
             this.writer = writable.getWriter();
         }
     }
@@ -76,7 +88,8 @@ class FetchDuplex extends Duplex {
     _write_options(extra_options) {
         const options = Object.assign({
             method: 'POST',
-            cache: 'no-store'
+            cache: 'no-store',
+            signal: this.abort_writer.signal
         }, extra_options, this.options);
         options.headers = Object.assign({
             'http2-duplex-id': this.id,
@@ -115,7 +128,8 @@ class FetchDuplex extends Duplex {
                 const response = await fetch(this.url, this._write_options({
                     headers: {
                         'http2-duplex-end': 'true'
-                    }
+                    },
+                    signal: undefined
                 }));
                 if (!response.ok) {
                     throw new ResponseError(response);
@@ -127,10 +141,32 @@ class FetchDuplex extends Duplex {
         }
         cb();
     }
+
+    _destroy(err, cb) {
+        const ignore_error = () => {}; // ignore cancel/abort errors
+        if (this.reader) {
+            this.reader.cancel().catch(ignore_error);
+        } else {
+            this.abort_reader.abort();
+        }
+        if (this.writer) {
+            this.writer.abort().catch(ignore_error);
+            cb(err);
+        } else {
+            this.abort_writer.abort();
+            this._final(() => {}); // don't care if we can't tell other end
+            cb(err);
+        }
+    }
 }
 
 export default async function (url, options) {
     const duplex = new FetchDuplex(url, options);
-    await duplex.init();
+    try {
+        await duplex.init();
+    } catch (ex) {
+        duplex.destroy();
+        throw ex;
+    }
     return duplex;
 }

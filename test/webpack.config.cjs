@@ -1,5 +1,7 @@
 /*eslint-env node */
 
+const webpack = require('webpack');
+
 module.exports = {
     context: __dirname,
     entry: './bundler.js',
@@ -17,5 +19,19 @@ module.exports = {
             use: ['source-map-loader']
         }]
     },
-    devtool: 'source-map'
+    devtool: 'source-map',
+    resolve: {
+        fallback: {
+            crypto: 'crypto-browserify',
+            stream: 'stream-browserify'
+        },
+        alias: {
+            process: 'process/browser'
+        }
+    },
+    plugins: [
+        new webpack.ProvidePlugin({
+            process: 'process'
+        })
+    ]
 };

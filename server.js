@@ -32,9 +32,9 @@ class ServerDuplex extends Duplex {
         stream.on('error', err => this.emit('error', err));
     }
 
-    sink() {
+    sink(stream) {
         const ths = this;
-        return new Writable(Object.assign({}, this.options, {
+        const r = new Writable(Object.assign({}, this.options, {
             write: function (chunk, encoding, cb) {
                 ths.chunks.push({ chunk, cb });
                 this.emit('written', chunk.length);
@@ -43,6 +43,11 @@ class ServerDuplex extends Duplex {
                 }
             }
         }));
+        const close = () => stream.destroy();
+        this.on('close', close);
+        r.on('close', () => this.removeListener('close', close));
+        stream.pipe(r);
+        return r;
     }
 
     _read() {
@@ -66,6 +71,11 @@ class ServerDuplex extends Duplex {
             return cb();
         }
         this.stream.end(cb);
+    }
+
+    _destroy(err, cb) {
+        this.stream.destroy(err);
+        cb(err);
     }
 }
 
@@ -191,9 +201,7 @@ export class Http2DuplexServer extends EventEmitter {
                 });
 
                 if (headers['http2-duplex-single'] == 'true') {
-                    const sink = duplex.sink();
-                    sink.on('finish', end);
-                    stream.pipe(sink);
+                    duplex.sink(stream).on('finish', end);
                     break;
                 }
 
@@ -201,9 +209,8 @@ export class Http2DuplexServer extends EventEmitter {
                 if (content_length === 0) {
                     respond();
                 } else {
-                    const sink = duplex.sink();
+                    const sink = duplex.sink(stream);
                     sink.on('finish', respond);
-                    stream.pipe(sink);
                     if (content_length > 0) {
                         let received = 0;
                         sink.on('written', len => {

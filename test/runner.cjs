@@ -200,10 +200,14 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                                 }
                                 return cb(err);
                             }
-                            d.on('end', () => {
+                            function done() {
                                 expect(client_duplexes.has(d.id)).to.be.true;
                                 client_duplexes.delete(d.id);
-                            });
+                                d.removeListener('end', done);
+                                d.removeListener('close', done);
+                            }
+                            d.on('end', done);
+                            d.on('close', done);
                             expect(client_duplexes.has(d.id)).to.be.false;
                             d.randomBytes = http2_client_duplex_bundle.crypto.randomBytes;
                             d.createHash = http2_client_duplex_bundle.crypto.createHash;
@@ -651,21 +655,19 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                     const orig_id = sender.id;
                     sender.id += 'x';
 
-                    sender.on('error', function (err) {
-                        sender.id = orig_id;
-                        expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
-                        expect(err.response.status).to.equal(404);
-                        expect(err.message).to.equal('404');
-                        this.on('end', cb);
-                        this.end();
-                    });
-
                     receiver.on('end', function () {
                         this.end();
                     });
                     receiver.resume();
 
-                    sender.write('hello');
+                    sender.write('hello', function (err) {
+                        sender.id = orig_id;
+                        expect(err).to.be.an.instanceof(http2_client_duplex_bundle.ResponseError);
+                        expect(err.response.status).to.equal(404);
+                        expect(err.message).to.equal('404');
+                        sender.on('end', cb);
+                        sender.end();
+                    });
                     sender.resume();
                 }, {
                     only_browser_to_server: true
@@ -704,7 +706,7 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                         expect(err.response.status).to.equal(404);
                         expect(err.message).to.equal('404');
                         expect(receiver.stream.closed).to.be.true;
-                        cb();
+                        this.on('close', cb);
                     });
                     receiver.destroy();
                     sender.end();
@@ -829,6 +831,47 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                     headers = h;
                     next();
                 });
+            });
+
+            test('end when client-side destroyed', function (sender, receiver, cb) {
+                receiver.on('close', cb);
+                receiver.on('end', function () {
+                    this.write('foo');
+                });
+                receiver.on('error', err => {
+                    expect(err.message).to.equal('write after end');
+                });
+                receiver.resume();
+                sender.on('error', err => {
+                    expect(err.message).to.equal('Failed to fetch');
+                });
+                sender.destroy();
+            }, {
+                only_browser_to_server: true
+            });
+
+            test('end when server-side destroyed', function (sender, receiver, cb) {
+                sender.on('close', cb);
+                sender.on('end', function () {
+                    // With disable_request_streaming=true, this write will get a 404 error
+                    // and thus destroy the stream.
+                    this.write('foo');
+                });
+                sender.resume();
+                sender.on('error', err => {
+                    if (err instanceof http2_client_duplex_bundle.ResponseError) {
+                        expect(err.response.status).to.equal(404);
+                        expect(err.message).to.equal('404');
+                    } else {
+                        // With disable_request_streaming=false, the single POST fetch will
+                        // fail (and destroy the stream) due to the server destroying its
+                        // side of the stream.
+                        expect(err.message).to.equal('Failed to fetch');
+                    }
+                });
+                receiver.destroy();
+            }, {
+                only_browser_to_server: true
             });
         }
 

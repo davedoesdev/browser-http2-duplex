@@ -30,7 +30,7 @@ module.exports = function (grunt) {
                 cmd: './node_modules/.bin/babel client.js server.js --out-dir test/instrument --source-maps',
                 options: {
                     env: Object.assign({}, process.env, {
-                        NODE_ENV: 'test'
+                        BABEL_ENV: 'test'
                     })
                 }
             },
