@@ -7,8 +7,6 @@ node_js:
   - 12
   - 14
 before_install:
-  - npm cache clean --force
-  - npm cache verify
   - rm package-lock.json
 script:
   - npm run ci
