@@ -10,6 +10,8 @@ export class ResponseError extends Error {
         super(response.statusText || String(response.status));
         this.response = response;
     }
+
+    async init() {}
 }
 
 class FetchDuplex extends Duplex {
@@ -28,13 +30,19 @@ class FetchDuplex extends Duplex {
         this.abort_writer = new AbortController();
     }
 
+    async _response_error(response) {
+        const err = new this.options.ResponseError(response);
+        await err.init();
+        return err;
+    }
+
     async init() {
         const response = await fetch(this.url, Object.assign({
             cache: 'no-store',
             signal: this.abort_reader.signal
         }, this.options));
         if (!response.ok) {
-            throw new this.options.ResponseError(response);
+            throw await this._response_error(response);
         }
         this.reader = response.body.getReader();
         this.id = response.headers.get('http2-duplex-id');
@@ -49,9 +57,9 @@ class FetchDuplex extends Duplex {
                     'http2-duplex-single': 'true'
                 },
                 body: readable
-            })).then(response => {
+            })).then(async response => {
                 if (!response.ok) {
-                    this.destroy(new this.options.ResponseError(response));
+                    this.destroy(await this._response_error(response));
                 }
             }).catch(err => this.destroy(err));
             this.writer = writable.getWriter();
@@ -110,7 +118,7 @@ class FetchDuplex extends Duplex {
                     body: data
                 }));
                 if (!response.ok) {
-                    throw new this.options.ResponseError(response);
+                    throw await this._response_error(response);
                 }
                 await response.arrayBuffer();
             }
@@ -133,7 +141,7 @@ class FetchDuplex extends Duplex {
                     signal: undefined
                 }));
                 if (!response.ok) {
-                    throw new this.options.ResponseError(response);
+                    throw await this._response_error(response);
                 }
                 await response.arrayBuffer();
             }
