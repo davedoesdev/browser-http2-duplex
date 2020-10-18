@@ -19,7 +19,8 @@ class FetchDuplex extends Duplex {
         }, options));
         this.url = url;
         this.options = Object.assign({
-            disable_request_streaming: false
+            disable_request_streaming: false,
+            ResponseError
         }, options);
         this.first = true;
         this.reading = false;
@@ -33,7 +34,7 @@ class FetchDuplex extends Duplex {
             signal: this.abort_reader.signal
         }, this.options));
         if (!response.ok) {
-            throw new ResponseError(response);
+            throw new this.options.ResponseError(response);
         }
         this.reader = response.body.getReader();
         this.id = response.headers.get('http2-duplex-id');
@@ -50,7 +51,7 @@ class FetchDuplex extends Duplex {
                 body: readable
             })).then(response => {
                 if (!response.ok) {
-                    this.destroy(new ResponseError(response));
+                    this.destroy(new this.options.ResponseError(response));
                 }
             }).catch(err => this.destroy(err));
             this.writer = writable.getWriter();
@@ -109,7 +110,7 @@ class FetchDuplex extends Duplex {
                     body: data
                 }));
                 if (!response.ok) {
-                    throw new ResponseError(response);
+                    throw new this.options.ResponseError(response);
                 }
                 await response.arrayBuffer();
             }
@@ -132,7 +133,7 @@ class FetchDuplex extends Duplex {
                     signal: undefined
                 }));
                 if (!response.ok) {
-                    throw new ResponseError(response);
+                    throw new this.options.ResponseError(response);
                 }
                 await response.arrayBuffer();
             }
