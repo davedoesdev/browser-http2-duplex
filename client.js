@@ -46,7 +46,6 @@ class FetchDuplex extends Duplex {
         }
         this.reader = response.body.getReader();
         this.id = response.headers.get('http2-duplex-id');
-
         if (!this.options.disable_request_streaming && !new Request('', {
             body: new ReadableStream(),
             method: 'POST',
@@ -133,7 +132,7 @@ class FetchDuplex extends Duplex {
             if (this.writer) {
                 await this.writer.ready;
                 await this.writer.close();
-            } else {
+            } else if (this.id !== undefined) {
                 const response = await fetch(this.url, this._write_options({
                     headers: {
                         'http2-duplex-end': 'true'
@@ -160,12 +159,11 @@ class FetchDuplex extends Duplex {
         }
         if (this.writer) {
             this.writer.abort().catch(ignore_error);
-            cb(err);
         } else {
             this.abort_writer.abort();
             this._final(() => {}); // don't care if we can't tell other end
-            cb(err);
         }
+        cb(err);
     }
 }
 
