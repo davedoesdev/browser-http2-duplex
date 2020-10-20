@@ -22,6 +22,7 @@ class FetchDuplex extends Duplex {
         this.url = url;
         this.options = Object.assign({
             disable_request_streaming: false,
+            fetch: (...args) => fetch(...args),
             ResponseError
         }, options);
         this.first = true;
@@ -37,7 +38,7 @@ class FetchDuplex extends Duplex {
     }
 
     async init() {
-        const response = await fetch(this.url, Object.assign({
+        const response = await this.options.fetch(this.url, Object.assign({
             cache: 'no-store',
             signal: this.abort_reader.signal
         }, this.options));
@@ -51,7 +52,7 @@ class FetchDuplex extends Duplex {
             method: 'POST',
         }).headers.has('Content-Type')) {
             const { readable, writable } = new TransformStream();
-            fetch(this.url, this._write_options({
+            this.options.fetch(this.url, this._write_options({
                 headers: {
                     'http2-duplex-single': 'true'
                 },
@@ -113,7 +114,7 @@ class FetchDuplex extends Duplex {
                 await this.writer.ready;
                 await this.writer.write(data);
             } else {
-                const response = await fetch(this.url, this._write_options({
+                const response = await this.options.fetch(this.url, this._write_options({
                     body: data
                 }));
                 if (!response.ok) {
@@ -133,7 +134,7 @@ class FetchDuplex extends Duplex {
                 await this.writer.ready;
                 await this.writer.close();
             } else if (this.id !== undefined) {
-                const response = await fetch(this.url, this._write_options({
+                const response = await this.options.fetch(this.url, this._write_options({
                     headers: {
                         'http2-duplex-end': 'true'
                     },
