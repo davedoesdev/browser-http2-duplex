@@ -848,8 +848,7 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 });
                 sender.destroy();
             }, {
-                only_browser_to_server: true,
-                it: it.only
+                only_browser_to_server: true
             });
 
             test('end when server-side destroyed', function (sender, receiver, cb) {
