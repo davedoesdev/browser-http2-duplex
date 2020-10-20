@@ -9,4 +9,4 @@ node_js:
 before_install:
   - rm package-lock.json
 script:
-  - npm run ci
+  - npm run test
