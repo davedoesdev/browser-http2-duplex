@@ -836,6 +836,7 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
             test('end when client-side destroyed', function (sender, receiver, cb) {
                 receiver.on('close', cb);
                 receiver.on('end', function () {
+                    console.log("ENDED");
                     this.write('foo');
                 });
                 receiver.on('error', err => {
@@ -847,7 +848,8 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 });
                 sender.destroy();
             }, {
-                only_browser_to_server: true
+                only_browser_to_server: true,
+                it: it.only
             });
 
             test('end when server-side destroyed', function (sender, receiver, cb) {
