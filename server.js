@@ -18,6 +18,15 @@ function ex_to_err(obj, method, check) {
     };
 }
 
+function ignore_reset_code() {
+    Object.defineProperty(this, 'rstCode', {
+        get() {
+            return constants.NGHTTP2_NO_ERROR;
+        },
+        configurable: true
+    });
+}
+
 class ServerDuplex extends Duplex {
     constructor(stream, options) {
         super(options);
@@ -29,7 +38,9 @@ class ServerDuplex extends Duplex {
     }
 
     forward_errors(stream) {
-        stream.on('error', err => this.emit('error', err));
+        stream.on('error', err => {
+            this.emit('error', err);
+        });
     }
 
     sink(stream) {
@@ -43,9 +54,6 @@ class ServerDuplex extends Duplex {
                 }
             }
         }));
-        const close = () => stream.destroy();
-        this.on('close', close);
-        r.on('close', () => this.removeListener('close', close));
         stream.pipe(r);
         return r;
     }
@@ -85,7 +93,10 @@ export class Http2DuplexServer extends EventEmitter {
 
         this.http2_server = http2_server;
         this.path = path;
-        this.options = options;
+        this.options = Object.assign({
+            close_timeout: 1000,
+            autoDestroy: true
+        }, options);
         this.sessions = new Set();
 
         this.common_headers = {
@@ -127,13 +138,7 @@ export class Http2DuplexServer extends EventEmitter {
                 return this.closed || this.destroyed;
             });
             ex_to_err(stream, 'close');
-            stream.on('aborted', function () {
-                Object.defineProperty(this, 'rstCode', {
-                    get() {
-                        return constants.NGHTTP2_NO_ERROR;
-                    }
-                });
-            });
+            stream.on('aborted', ignore_reset_code);
             stream.http2_duplex_owned = true;
         }
     }
@@ -172,14 +177,27 @@ export class Http2DuplexServer extends EventEmitter {
 
                 duplex.forward_errors(stream);
 
+                let responded = false;
                 const respond = () => {
-                    stream.respond({
-                        ':status': 200,
-                        ...response_headers
-                    }, {
-                        endStream: true
-                    });
+                    if (!responded) {
+                        responded = true;
+                        ignore_reset_code.call(stream);
+                        stream.respond({
+                            ':status': 200,
+                            ...response_headers
+                        }, {
+                            endStream: true
+                        });
+                    }
                 };
+
+                const on_close = () => {
+                    respond();
+                    const timeout = setTimeout(() => stream.close(), this.options.close_timeout);
+                    stream.on('close', () => clearTimeout(timeout));
+                };
+                duplex.on('close', on_close);
+                stream.on('close', () => duplex.removeListener('close', on_close));
 
                 const end = () => {
                     duplex.push(null);
@@ -189,16 +207,14 @@ export class Http2DuplexServer extends EventEmitter {
 
                 if (headers['http2-duplex-end'] === 'true') {
                     end();
+                    if (headers['http2-duplex-destroyed'] === 'true') {
+                        duplex.stream.close();
+                    }
                     break;
                 }
 
-                const on_close = () => {
-                    stream.close();
-                };
-                duplex.on('close', on_close);
-                stream.on('close', () => {
-                    duplex.removeListener('close', on_close);
-                });
+                // Note: http2 streams always emit 'end' when they close.
+                // See onStreamClose() and _destroy() in lib/internal/http2/core.js
 
                 if (headers['http2-duplex-single'] == 'true') {
                     duplex.sink(stream).on('finish', end);

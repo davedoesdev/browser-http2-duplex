@@ -58,9 +58,10 @@ class FetchDuplex extends Duplex {
                 },
                 body: readable
             })).then(async response => {
-                if (!response.ok) {
-                    this.destroy(await this._response_error(response));
+                if (response.ok) {
+                    return this.end();
                 }
+                this.destroy(await this._response_error(response));
             }).catch(err => this.destroy(err));
             this.writer = writable.getWriter();
         }
@@ -108,6 +109,7 @@ class FetchDuplex extends Duplex {
     }
 
     async _write(chunk, encoding, cb) {
+        let err;
         try {
             const data = Uint8Array.from(chunk);
             if (this.writer) {
@@ -123,20 +125,18 @@ class FetchDuplex extends Duplex {
                 await response.arrayBuffer();
             }
         } catch (ex) {
-            return cb(ex);
+            err = ex;
         }
-        cb();
+        cb(err);
     }
 
-    async _final(cb) {
-        try {
-            if (this.writer) {
-                await this.writer.ready;
-                await this.writer.close();
-            } else if (this.id !== undefined) {
+    async _send_end(err, cb) {
+        if (this.id !== undefined) {
+            try {
                 const response = await this.options.fetch(this.url, this._write_options({
                     headers: {
-                        'http2-duplex-end': 'true'
+                        'http2-duplex-end': 'true',
+                        'http2-duplex-destroyed': this.destroyed
                     },
                     signal: undefined
                 }));
@@ -144,9 +144,22 @@ class FetchDuplex extends Duplex {
                     throw await this._response_error(response);
                 }
                 await response.arrayBuffer();
+            } catch (ex) {
+                return cb(err || ex);
             }
+        }
+        cb(err);
+    }
+
+    async _final(cb) {
+        if (!this.writer) {
+            return await this._send_end(null, cb);
+        }
+        try {
+            await this.writer.ready;
+            await this.writer.close();
         } catch (ex) {
-            return cb(ex);
+            return await this._send_end(ex, cb);
         }
         cb();
     }
@@ -162,8 +175,9 @@ class FetchDuplex extends Duplex {
             this.writer.abort().catch(ignore_error);
         } else {
             this.abort_writer.abort();
-            this._final(() => {}); // don't care if we can't tell other end
+            this.abort_writer = new AbortController();
         }
+        this._send_end(null, () => {}); // don't care if we can't tell other end
         cb(err);
     }
 }

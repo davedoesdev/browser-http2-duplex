@@ -21,6 +21,7 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
         const server_duplexes = new Map();
 
         const warnings = [];
+        let streams;
 
         before(async function () {
             http2_server = createSecureServer({
@@ -34,6 +35,14 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                     highWaterMark: 100
                 });
             http2_duplex_server.attach(); // check ignores if already attached
+
+            const orig_own_stream = http2_duplex_server.own_stream
+            http2_duplex_server.own_stream = function (stream) {
+                if (!stream.http2_duplex_owned) {
+                    streams.push(stream);
+                }
+                return orig_own_stream.call(this, stream);
+            };
 
             http2_duplex_server.on('duplex', function (duplex, id) {
                 this.own_stream(duplex.stream); // check ignores if already owned
@@ -89,6 +98,7 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
         beforeEach(function () {
             expect(client_duplexes.size).to.equal(0);
             expect(server_duplexes.size).to.equal(0);
+            streams = [];
         });
 
         afterEach(function (cb) {
@@ -162,8 +172,8 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
 
                         if (options.simultaneous &&
                             !options.only_browser_to_server) {
-                            f.call(ths, cd, sd, check2);
-                            f.call(ths, sd, cd, check2);
+                            f.call(ths, cd, sd, check2, id, 'c2s');
+                            f.call(ths, sd, cd, check2, id, 's2c');
                         } else {
                             f.call(ths, cd, sd, function (err) {
                                 ++count;
@@ -173,8 +183,8 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                                 if (options.only_browser_to_server) {
                                     return check2();
                                 }
-                                f.call(ths, sd, cd, check2);
-                            });
+                                f.call(ths, sd, cd, check2, id, 's2c');
+                            }, id, 'c2s');
                         }
                     }
                 }
@@ -257,7 +267,7 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                 });
             });
 
-            test('multiple bytes', function (sender, receiver, cb) {
+            test('multiple bytes', function (sender, receiver, cb, id, type) {
                 this.timeout(60 * 1000);
 
                 let sender_done = false;
@@ -786,25 +796,23 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
             });
 
             it('close active POST request when duplex closes', function (cb) {
+                this.timeout(5000);
                 let duplex, headers;
                 function next() {
                     if (!duplex || !headers) {
                         return;
                     }
-                    duplex.stream.session.once('stream', stream => {
-                        stream.on('error', err => {
-                            expect(err.code).to.equal('ERR_HTTP2_INVALID_STREAM');
-                        });
-                    });
                     const stream2 = session.request({
                         ':method': 'POST',
                         ':path': '/test',
                         'http2-duplex-id': headers['http2-duplex-id']
                     });
-                    stream2.on('response', () => {
-                        cb(new Error('should not be called'));
+                    let status;
+                    stream2.on('response', headers => {
+                        status = headers[':status'];
                     });
                     stream2.on('close', () => {
+                        expect(status).to.equal(200);
                         session.close(cb);
                     });
                     setTimeout(() => {
@@ -836,7 +844,6 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
             test('end when client-side destroyed', function (sender, receiver, cb) {
                 receiver.on('close', cb);
                 receiver.on('end', function () {
-                    console.log("ENDED");
                     this.write('foo');
                 });
                 receiver.on('error', err => {
@@ -874,6 +881,49 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
             }, {
                 only_browser_to_server: true
             });
+
+            test('should not error if _final called twice', function (sender, receiver, cb) {
+                sender.on('end', function () {
+                    sender._final(err => {
+                        if (disable_request_streaming) {
+                            expect(err.response.status).to.equal(404);
+                            expect(err.message).to.equal('404');
+                        } else {
+                            expect(err.message).to.equal('Cannot close a CLOSED writable stream');
+                        }
+                        cb();
+                    });
+                });
+                receiver.on('end', function () {
+                    this.end();
+                });
+                receiver.resume();
+                sender.resume();
+                sender.end();
+            }, {
+                only_browser_to_server: true
+            });
+
+            if (!disable_request_streaming) {
+                test('should not error if respond called when already closed', function (sender, receiver, cb) {
+                    function check() {
+                        if (streams.length < 2) {
+                            return setTimeout(check, 100);
+                        }
+                        streams[1].on('end', () => receiver.end());
+                        streams[1].destroy();
+                    }
+                    sender.on('error', err => {
+                        expect(err.message).to.equal('Failed to fetch');
+                    });
+                    sender.on('close', cb);
+                    sender.resume();
+                    check();
+                }, {
+                    only_browser_to_server: true,
+                    max: 1
+                });
+            }
         }
 
         tests(1);
