@@ -39,7 +39,7 @@
     "chai": "^4.2.0",
     "coveralls": "^3.1.0",
     "crypto-browserify": "^3.12.0",
-    "eslint": "^7.11.0",
+    "eslint": "^7.12.1",
     "grunt": "^1.3.0",
     "grunt-eslint": "^23.0.0",
     "grunt-exec": "^3.0.0",
@@ -47,9 +47,9 @@
     "nw-builder": "davedoesdev/nw-builder",
     "nyc": "^15.1.0",
     "process": "^0.11.10",
-    "source-map-loader": "^1.1.1",
+    "source-map-loader": "^1.1.2",
     "stream-browserify": "^3.0.0",
-    "webpack": "^5.1.3",
+    "webpack": "^5.3.1",
     "webpack-cli": "^4.1.0"
   },
   "engines": {
