@@ -21,15 +21,18 @@ https://streams.spec.whatwg.org/#rs-class[`ReadableStream`].
 The latter works fine in browsers -- you can read data sent from the server
 using the `ReadableStream` class.
 
-But streaming data from the browser to the server using Fetch doesn't work:
+But streaming data from the browser to the server using Fetch doesn't work.
 
-1. Browsers don't implement attaching a `ReadableStream` to a request body yet. Chromium has started to implement it https://bugs.chromium.org/p/chromium/issues/detail?id=688906[here].
-
-2. Even when attaching a `ReadableStream` to a request body has been implemented, you won't get full-duplex behaviour according to
+To quote
 https://bugs.chromium.org/p/chromium/issues/detail?id=688906#c40[this comment]
 from the Chromium team:
 
 > It won't be full-duplex. You'll have to send everything before receiving anything (anything sent by the server before that will be buffered).
+
+And to quote https://web.dev/fetch-upload-streaming/[this article] from a
+Chrome developer advocate:
+
+> In Chrome's current implementation, you won't get the response until the body has been fully sent.
 
 == Solution
 
