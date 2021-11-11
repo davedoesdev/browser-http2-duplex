@@ -29,7 +29,9 @@ jobs:
         run: npx grunt --gruntfile Gruntfile.cjs lint
 
       - name: Coverage
-        run: npx grunt --gruntfile Gruntfile.cjs coverage  
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: npx grunt --gruntfile Gruntfile.cjs coverage  
 
       - name: Coveralls
         uses: coverallsapp/github-action@master
