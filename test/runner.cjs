@@ -613,9 +613,11 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                     this.end();
                 });
 
-                const orig_write = receiver.write;
+                const orig_write = receiver._write;
 
-                receiver.write = function (data) {
+                let write_cb;
+                receiver._write = function (data, enc, cb) {
+                    write_cb = cb;
                     throw new Error(data);
                 };
 
@@ -623,7 +625,8 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
 
                 receiver.on('error', function (err) {
                     expect(err.message).to.equal('dummy');
-                    this.write = orig_write;
+                    this._write = orig_write;
+                    write_cb();
                     this.end();
                     this.resume();
                     sender.resume();

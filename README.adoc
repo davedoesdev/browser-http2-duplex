@@ -27,12 +27,19 @@ To quote
 https://bugs.chromium.org/p/chromium/issues/detail?id=688906#c40[this comment]
 from the Chromium team:
 
-> It won't be full-duplex. You'll have to send everything before receiving anything (anything sent by the server before that will be buffered).
+[quote]
+It won't be full-duplex. You'll have to send everything before receiving anything (anything sent by the server before that will be buffered).
 
 And to quote https://web.dev/fetch-upload-streaming/[this article] from a
 Chrome developer advocate:
 
-> In Chrome's current implementation, you won't get the response until the body has been fully sent.
+[quote]
+In Chrome's current implementation, you won't get the response until the body has been fully sent.
+
+Further, it looks like streaming upoad support has now https://bugs.chromium.org/p/chromium/issues/detail?id=688906#c57[been dropped]:
+
+[quote]
+Thank you very much for participate in the origin trial. We worked with a parter but we failed to show benefits of the feature, so we're giving up shipping the feature.
 
 == Solution
 
@@ -47,6 +54,8 @@ in a _separate_ POST request (over a single HTTP/2 connection).
 
 On the server, `browser-http2-duplex` marries up the separate POST requests with
 the initial reponse and presents a `Duplex` stream to your application.
+
+UPDATE: The new https://www.w3.org/TR/webtransport/[WebTransport] W3C standard supports bidirectional streams between browser and server. If you can live with HTTP/3 only then you might want to check it out.
 
 == Example
 

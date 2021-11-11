@@ -17,17 +17,17 @@ module.exports = function (grunt) {
             ]
         },
 
-        exec: {
-            bundle: './node_modules/.bin/webpack --mode production --config test/webpack.config.cjs',
+        exec: Object.fromEntries(Object.entries({
+            bundle: 'npx webpack --mode production --config test/webpack.config.cjs',
             nw_build: [
                 'rsync -a node_modules test --exclude nw-builder --delete',
                 'mkdir -p test/node_modules/http2-duplex',
                 'cp test/instrument/server.* test/node_modules/http2-duplex',
-                './node_modules/.bin/nwbuild --quiet -p linux64 test'
+                'npx nwbuild --quiet -p linux64 test'
             ].join('&&'),
             test: 'export TEST_ERR_FILE=/tmp/test_err_$$; ./build/http2-duplex-test/linux64/http2-duplex-test; if [ -f $TEST_ERR_FILE ]; then exit 1; fi',
             instrument: {
-                cmd: './node_modules/.bin/babel client.js server.js --out-dir test/instrument --source-maps',
+                cmd: 'npx babel client.js server.js --out-dir test/instrument --source-maps',
                 options: {
                     env: Object.assign({}, process.env, {
                         BABEL_ENV: 'test'
@@ -37,7 +37,7 @@ module.exports = function (grunt) {
             cover: {
                 cmd: [
                     `mkdir -p '${coverage_dir}'`,
-                    './node_modules/.bin/grunt --gruntfile Gruntfile.cjs test'
+                    'npx grunt --gruntfile Gruntfile.cjs test'
                 ].join('&&'),
                 options: {
                     env: Object.assign({}, process.env, {
@@ -45,14 +45,18 @@ module.exports = function (grunt) {
                     })
                 }
             },
-            cover_report: './node_modules/.bin/nyc report -r lcov -r text',
-            cover_check: './node_modules/.bin/nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100',
-            coveralls: 'cat coverage/lcov.info | coveralls',
-            example: [
-                './node_modules/.bin/webpack --mode production --config example/webpack.config.cjs',
-                'node example/server.js'
-            ].join('&&')
-        }
+            cover_report: 'npx nyc report -r lcov -r text',
+            cover_check: 'npx nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100',
+            documentation: {
+                cmd: 'asciidoc -b docbook -o - README.adoc | pandoc -f docbook -t gfm -o README.md'
+            },
+            example: {
+                cmd: [
+                    'npx webpack --mode production --config example/webpack.config.cjs',
+                    'node example/server.js'
+                ].join('&&')
+            }
+        }).map(([k, v]) => [k, { stdio: 'inherit', ...v }]))
     });
 
     grunt.loadNpmTasks('grunt-eslint');
@@ -70,6 +74,6 @@ module.exports = function (grunt) {
         'exec:cover_report',
         'exec:cover_check'
     ]);
-    grunt.registerTask('coveralls', 'exec:coveralls');
+    grunt.registerTask('docs', 'exec:documentation');
     grunt.registerTask('example', 'exec:example');
 };
