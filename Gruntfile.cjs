@@ -18,14 +18,20 @@ module.exports = function (grunt) {
         },
 
         exec: Object.fromEntries(Object.entries({
-            bundle: 'npx webpack --mode production --config test/webpack.config.cjs',
-            nw_build: [
-                'rsync -a node_modules test --exclude nw-builder --delete',
-                'mkdir -p test/node_modules/http2-duplex',
-                'cp test/instrument/server.* test/node_modules/http2-duplex',
-                'npx nwbuild --quiet -p linux64 test'
-            ].join('&&'),
-            test: 'export TEST_ERR_FILE=/tmp/test_err_$$; ./build/http2-duplex-test/linux64/http2-duplex-test; if [ -f $TEST_ERR_FILE ]; then exit 1; fi',
+            bundle: {
+                cmd: 'npx webpack --mode production --config test/webpack.config.cjs'
+            },
+            nw_build: {
+                cmd: [
+                    'rsync -a node_modules test --exclude nw-builder --delete',
+                    'mkdir -p test/node_modules/http2-duplex',
+                    'cp test/instrument/server.* test/node_modules/http2-duplex',
+                    'npx nwbuild --quiet -p linux64 test'
+                ].join('&&')
+            },
+            test: {
+                cmd: 'export TEST_ERR_FILE=/tmp/test_err_$$; ./build/http2-duplex-test/linux64/http2-duplex-test; if [ -f $TEST_ERR_FILE ]; then exit 1; fi'
+            },
             instrument: {
                 cmd: 'npx babel client.js server.js --out-dir test/instrument --source-maps',
                 options: {
@@ -45,8 +51,12 @@ module.exports = function (grunt) {
                     })
                 }
             },
-            cover_report: 'npx nyc report -r lcov -r text',
-            cover_check: 'npx nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100',
+            cover_report: {
+                cmd: 'npx nyc report -r lcov -r text'
+            },
+            cover_check: {
+                cmd: 'npx nyc check-coverage --statements 100 --branches 100 --functions 100 --lines 100'
+            },
             documentation: {
                 cmd: 'asciidoc -b docbook -o - README.adoc | pandoc -f docbook -t gfm -o README.md'
             },
