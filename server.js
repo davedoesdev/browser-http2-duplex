@@ -216,7 +216,7 @@ export class Http2DuplexServer extends EventEmitter {
                 // Note: http2 streams always emit 'end' when they close.
                 // See onStreamClose() and _destroy() in lib/internal/http2/core.js
 
-                if (headers['http2-duplex-single'] == 'true') {
+                if (headers['http2-duplex-single'] === 'true') {
                     duplex.sink(stream).on('finish', end);
                     break;
                 }
