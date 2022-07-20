@@ -50,6 +50,10 @@ dropped](https://bugs.chromium.org/p/chromium/issues/detail?id=688906#c57):
 > with a parter but we failed to show benefits of the feature, so we’re
 > giving up shipping the feature.
 
+The issue can be followed
+[here](https://github.com/whatwg/fetch/issues/1254) and
+[here](https://github.com/whatwg/fetch/issues/1438).
+
 # Solution
 
 `browser-http2-duplex` emulates a full-duplex Node.js `Duplex` stream in
@@ -96,11 +100,11 @@ const cert_dir = join(__dirname, 'certs');
         '/example'
     );
 
-    http2_duplex_server.on('duplex', function (stream) { 
+    http2_duplex_server.on('duplex', function (stream) { // 
         stream.pipe(stream);
     });
 
-    http2_duplex_server.on('unhandled_stream', function (stream, headers) { 
+    http2_duplex_server.on('unhandled_stream', function (stream, headers) { // 
         const path = headers[':path'];
         if (path === '/client.html') {
             return stream.respondWithFile(
@@ -136,7 +140,7 @@ Note you can just Control-C the server to stop it. If you wanted to stop
 the server in code, you would do something like this:
 
 ``` javascript
-http2_duplex_server.detach(); 
+http2_duplex_server.detach(); // 
 await promisify(http2_server.close.bind(http2_server))();
 ```
 
@@ -149,14 +153,14 @@ echoed response to the page:
 
 ``` javascript
 export default async function () {
-    const duplex = await http2_client_duplex_bundle.make( 
+    const duplex = await http2_client_duplex_bundle.make( // 
         'https://localhost:7000/example');
 
-    document.addEventListener('keypress', ev => { 
+    document.addEventListener('keypress', ev => { // 
         duplex.write(ev.key);
     });
 
-    duplex.on('readable', function () { 
+    duplex.on('readable', function () { // 
         let buf;
         do {
             buf = this.read();

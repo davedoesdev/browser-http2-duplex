@@ -41,6 +41,8 @@ Further, it looks like streaming upoad support has now https://bugs.chromium.org
 [quote]
 Thank you very much for participate in the origin trial. We worked with a parter but we failed to show benefits of the feature, so we're giving up shipping the feature.
 
+The issue can be followed https://github.com/whatwg/fetch/issues/1254[here] and https://github.com/whatwg/fetch/issues/1438[here].
+
 == Solution
 
 `browser-http2-duplex` emulates a full-duplex Node.js `Duplex` stream in the
@@ -83,11 +85,11 @@ const cert_dir = join(__dirname, 'certs');
         '/example'
     );
 
-    http2_duplex_server.on('duplex', function (stream) { <3>
+    http2_duplex_server.on('duplex', function (stream) { // <3>
         stream.pipe(stream);
     });
 
-    http2_duplex_server.on('unhandled_stream', function (stream, headers) { <4>
+    http2_duplex_server.on('unhandled_stream', function (stream, headers) { // <4>
         const path = headers[':path'];
         if (path === '/client.html') {
             return stream.respondWithFile(
@@ -118,7 +120,7 @@ server in code, you would do something like this:
 
 [source,javascript]
 ----
-http2_duplex_server.detach(); <1>
+http2_duplex_server.detach(); // <1>
 await promisify(http2_server.close.bind(http2_server))();
 ----
 <1> This destroys all active sessions.
@@ -130,14 +132,14 @@ response to the page:
 .client.js
 ----
 export default async function () {
-    const duplex = await http2_client_duplex_bundle.make( <1>
+    const duplex = await http2_client_duplex_bundle.make( // <1>
         'https://localhost:7000/example');
     
-    document.addEventListener('keypress', ev => { <2>
+    document.addEventListener('keypress', ev => { // <2>
         duplex.write(ev.key);
     });
 
-    duplex.on('readable', function () { <3>
+    duplex.on('readable', function () { // <3>
         let buf;
         do {
             buf = this.read();

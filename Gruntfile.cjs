@@ -23,10 +23,10 @@ module.exports = function (grunt) {
             },
             nw_build: {
                 cmd: [
-                    'rsync -a node_modules test --exclude nw-builder --delete',
+                    'rsync -a node_modules test --exclude nw-builder --exclude malformed_package_json --delete',
                     'mkdir -p test/node_modules/http2-duplex',
                     'cp test/instrument/server.* test/node_modules/http2-duplex',
-                    'npx nwbuild --quiet -p linux64 test'
+                    'npx nwbuild test --mode build --quiet warn --platforms linux64'
                 ].join('&&')
             },
             test: {
