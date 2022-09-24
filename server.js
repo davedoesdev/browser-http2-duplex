@@ -43,10 +43,16 @@ class ServerDuplex extends Duplex {
         });
     }
 
+    push_next() {
+        const { chunk, cb } = this.chunks.shift();
+        process.nextTick(cb);
+        return this.push(chunk);
+    }
+
     sink(stream) {
         const ths = this;
         const r = new Writable(Object.assign({}, this.options, {
-            write: function (chunk, encoding, cb) {
+            write(chunk, encoding, cb) {
                 ths.chunks.push({ chunk, cb });
                 this.emit('written', chunk.length);
                 if (ths.need_chunk) {
@@ -58,16 +64,23 @@ class ServerDuplex extends Duplex {
         return r;
     }
 
-    _read() {
-        if (this.chunks.length > 0) {
-            this.need_chunk = false;
-            const { chunk, cb } = this.chunks.shift();
-            if (this.push(chunk)) {
-                process.nextTick(() => this._read());
-            }
-            return cb();
+    drain_and_end() {
+        while (this.chunks.length > 0) {
+            this.push_next();
         }
-        this.need_chunk = true;
+        this.push(null);
+    }
+
+    _read() {
+        this.need_chunk = this.chunks.length === 0;
+        if (!this.need_chunk) {
+            while (this.chunks.length > 0) {
+                if (!this.push_next()) {
+                    return;
+                }
+            }
+            this.need_chunk = true;
+        }
     }
 
     _write(chunk, encoding, cb) {
@@ -200,7 +213,7 @@ export class Http2DuplexServer extends EventEmitter {
                 stream.on('close', () => duplex.removeListener('close', on_close));
 
                 const end = () => {
-                    duplex.push(null);
+                    duplex.drain_and_end();
                     duplexes.delete(id);
                     respond();
                 };

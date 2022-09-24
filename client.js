@@ -1,5 +1,4 @@
 /*eslint-env node, browser */
-/* global TransformStream */
 import stream from 'stream';
 import buffer from 'buffer';
 const { Duplex } = stream;
@@ -12,6 +11,21 @@ export class ResponseError extends Error {
     }
 
     async init() {}
+}
+
+function request_streaming_supported() {
+    let duplex_accessed = false;
+
+    const has_content_type = new Request('', {
+        body: new ReadableStream(),
+        method: 'POST',
+        get duplex() {
+            duplex_accessed = true;
+            return 'half';
+        }
+    }).headers.has('Content-Type');
+
+    return duplex_accessed && !has_content_type;
 }
 
 class FetchDuplex extends Duplex {
@@ -47,16 +61,14 @@ class FetchDuplex extends Duplex {
         }
         this.reader = response.body.getReader();
         this.id = response.headers.get('http2-duplex-id');
-        if (!this.options.disable_request_streaming && !new Request('', {
-            body: new ReadableStream(),
-            method: 'POST',
-        }).headers.has('Content-Type')) {
+        if (!this.options.disable_request_streaming && request_streaming_supported()) {
             const { readable, writable } = new TransformStream();
             this.options.fetch(this.url, this._write_options({
                 headers: {
                     'http2-duplex-single': 'true'
                 },
-                body: readable
+                body: readable,
+                duplex: 'half'
             })).then(async response => {
                 if (response.ok) {
                     return this.end();

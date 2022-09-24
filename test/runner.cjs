@@ -927,6 +927,32 @@ function run(http2_client_duplex_bundle, disable_request_streaming) {
                     max: 1
                 });
             }
+
+            test('should drain messages when duplex ends', function (sender, receiver, cb) {
+                receiver.on('end', function () {
+                    this.end();
+                });
+
+                const push = receiver.chunks.push;
+                receiver.chunks.push = function ({ chunk, cb: wcb }) {
+                    push.call(this, {
+                        chunk,
+                        cb: () => {
+                            expect(receiver.read().length).to.equal(20);
+                            expect(receiver.read()).to.equal(null);
+                        }
+                    });
+                    wcb();
+                };
+
+                sender.on('readable', function () {
+                    expect(this.read()).to.equal(null);
+                });
+                sender.on('end', cb);
+                sender.end(sender.randomBytes(20));
+            }, {
+                only_browser_to_server: true,
+            });
         }
 
         tests(1);

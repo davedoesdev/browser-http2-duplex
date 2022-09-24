@@ -26,7 +26,7 @@ module.exports = function (grunt) {
                     'rsync -a node_modules test --exclude nw-builder --exclude malformed_package_json --delete',
                     'mkdir -p test/node_modules/http2-duplex',
                     'cp test/instrument/server.* test/node_modules/http2-duplex',
-                    'npx nwbuild test/package.json --mode build --quiet warn --platforms linux64'
+                    'npx nwbuild test/package.json "test/**" --mode build --quiet warn --platforms linux64'
                 ].join('&&')
             },
             test: {
