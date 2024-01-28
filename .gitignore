@@ -1,4 +1,4 @@
-/build
+/out
 /cache
 node_modules
 /test/bundle.js

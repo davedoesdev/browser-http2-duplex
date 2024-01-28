@@ -23,14 +23,16 @@ module.exports = function (grunt) {
             },
             nw_build: {
                 cmd: [
-                    'rsync -a node_modules test --exclude nw-builder --exclude malformed_package_json --delete',
+                    'rsync -a node_modules test --exclude chai --exclude check-error --exclude assertion-error --exclude loupe --delete --delete-excluded',
+                    // Note: only @babel/plugin-transform-modules-commonjs will run since babel-plugin-istanbul skips node_modules by default
+                    'for m in chai check-error assertion-error loupe; do BABEL_ENV=test npx babel --config-file ./.babelrc node_modules/$m --out-dir test/node_modules/$x; done',
                     'mkdir -p test/node_modules/http2-duplex',
                     'cp test/instrument/server.* test/node_modules/http2-duplex',
-                    'npx nwbuild test/package.json "test/**" --mode build --quiet warn --platforms linux64'
+                    'npx nwbuild test --mode build --glob false --platform linux --arch x64'
                 ].join('&&')
             },
             test: {
-                cmd: 'export TEST_ERR_FILE=/tmp/test_err_$$; ./build/http2-duplex-test/linux64/http2-duplex-test; if [ -f $TEST_ERR_FILE ]; then exit 1; fi'
+                cmd: 'export TEST_ERR_FILE=/tmp/test_err_$$; ./out/http2-duplex-test; if [ -f $TEST_ERR_FILE ]; then exit 1; fi'
             },
             instrument: {
                 cmd: 'npx babel client.js server.js --out-dir test/instrument --source-maps',

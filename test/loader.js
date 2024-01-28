@@ -6,10 +6,9 @@ const os = require('os');
 
 function done(err) {
     if (err) {
-        if (process.env.TEST_ERR_FILE) {
-            require('fs').writeFileSync(process.env.TEST_ERR_FILE, '');
-        }
         process.stderr.write(`${err.stack}\n`);
+    } else if (process.env.TEST_ERR_FILE) {
+        require('fs').unlinkSync(process.env.TEST_ERR_FILE);
     }
     require('nw.gui').App.quit();
     if (err) {
@@ -44,6 +43,9 @@ console.trace = function trace() { // eslint-disable-line no-console
 };
 
 export default function() {
+    if (process.env.TEST_ERR_FILE) {
+        require('fs').writeFileSync(process.env.TEST_ERR_FILE, '');
+    }
     try {
         //nw.Window.get().showDevTools();
         require('./load_runner.cjs')(http2_client_duplex_bundle, done);
