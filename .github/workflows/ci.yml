@@ -29,6 +29,6 @@ jobs:
         run: xvfb-run npx grunt --gruntfile Gruntfile.cjs coverage  
 
       - name: Coveralls
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
